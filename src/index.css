@@ -1,0 +1,247 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+
+:root {
+  --wood-dark: #120907;
+  --wood-deep: #1a0f0a;
+  --wood-main: #2d1810;
+  --wood-light: #3e2723;
+  --wood-accent: #d4a373;
+  --wood-highlight: #f5ebe0;
+  
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+  
+  --accent-gradient: linear-gradient(135deg, #d4a373 0%, #a67c52 100%);
+  --dark-gradient: linear-gradient(180deg, #1a0f0a 0%, #120907 100%);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Outfit', sans-serif;
+}
+
+body {
+  background: #120907;
+  background-image: 
+    radial-gradient(circle at 20% 20%, rgba(45, 24, 16, 0.4) 0%, transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(62, 39, 35, 0.3) 0%, transparent 40%),
+    linear-gradient(135deg, #120907 0%, #1a0f0a 100%);
+  background-attachment: fixed;
+  color: #f5ebe0;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Glassmorphism Utilities */
+.glass-panel {
+  background: rgba(26, 15, 10, 0.6);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--glass-shadow);
+  border-radius: 24px;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Security Utilities */
+.no-copy {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  pointer-events: auto;
+  -webkit-touch-callout: none;
+}
+
+.no-copy::selection {
+  background: transparent;
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-5px);
+  border-color: rgba(212, 163, 115, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+
+.glass-input {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 14px 20px;
+  color: #f5ebe0;
+  width: 100%;
+  outline: none;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.glass-input:focus {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: var(--wood-accent);
+  box-shadow: 0 0 0 4px rgba(212, 163, 115, 0.15);
+}
+
+.glass-button {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  padding: 12px 28px;
+  border-radius: 14px;
+  color: #f5ebe0;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.glass-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.glass-button.primary {
+  background: var(--accent-gradient);
+  border: none;
+  color: #120907;
+  box-shadow: 0 4px 15px rgba(212, 163, 115, 0.3);
+}
+
+.glass-button.primary:hover {
+  box-shadow: 0 8px 25px rgba(212, 163, 115, 0.5);
+  transform: translateY(-2px) scale(1.02);
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--wood-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--wood-main);
+  border-radius: 5px;
+  border: 2px solid var(--wood-dark);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--wood-accent);
+}
+
+/* Typography Enhancements */
+h1, h2, h3 {
+  letter-spacing: -0.02em;
+  background: linear-gradient(to bottom, #ffffff, #d4a373);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+p {
+  color: rgba(245, 235, 224, 0.8);
+  line-height: 1.7;
+}
+
+/* Layout Classes */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.section-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+}
+
+/* Optimized List Styles */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(212, 163, 115, 0.2);
+  border-radius: 10px;
+  border: none;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 163, 115, 0.4);
+}
+
+.hover-card {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.hover-card:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  transform: translateX(4px);
+  border-color: rgba(212, 163, 115, 0.3) !important;
+}
+
+/* --- Responsive Media Queries --- */
+
+/* Tablets & Small Desktops */
+@media (max-width: 1024px) {
+  h1 { font-size: 3rem !important; }
+  h2 { font-size: 2.2rem !important; }
+  .container { padding: 0 1.5rem; }
+}
+
+/* Small Tablets & Large Phones */
+@media (max-width: 768px) {
+  h1 { font-size: 2.5rem !important; }
+  h2 { font-size: 1.8rem !important; }
+  h3 { font-size: 1.4rem !important; }
+  
+  .glass-panel { padding: 24px !important; }
+  .glass-card { padding: 16px !important; }
+  
+  .desktop-only { display: none !important; }
+  .mobile-only { display: block !important; }
+  
+  /* Stack shared layouts */
+  .responsive-grid { grid-template-columns: 1fr !important; }
+  .responsive-flex { flex-direction: column !important; }
+}
+
+/* Small Phones */
+@media (max-width: 480px) {
+  h1 { font-size: 2.2rem !important; }
+  h2 { font-size: 1.6rem !important; }
+  
+  .glass-panel { padding: 20px !important; border-radius: 16px !important; }
+  .glass-button { padding: 10px 20px !important; font-size: 0.9rem !important; }
+  
+  .mobile-stack { flex-direction: column !important; gap: 12px !important; width: 100% !important; }
+  .mobile-full { width: 100% !important; }
+}
