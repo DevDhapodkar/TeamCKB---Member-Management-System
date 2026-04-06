@@ -59,8 +59,26 @@ export default function Home() {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8 }}
-          style={{ marginBottom: "32px" }}
+          style={{ 
+            marginBottom: "32px",
+            position: "relative",
+            display: "inline-block"
+          }}
         >
+          {/* Subtle Glow Background */}
+          <div style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "140%",
+            height: "140%",
+            background: "radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 50%, transparent 70%)",
+            filter: "blur(20px)",
+            zIndex: -1,
+            borderRadius: "50%"
+          }} />
+          
           <img 
             src={logo} 
             alt="CKB Logo" 
@@ -69,7 +87,7 @@ export default function Home() {
               maxWidth: "240px", 
               height: "auto", 
               objectFit: "contain", 
-              filter: "drop-shadow(0 0 20px rgba(255, 255, 255, 0.15)) drop-shadow(0 0 40px rgba(212, 163, 115, 0.1))" 
+              filter: "brightness(1.1) contrast(1.1) drop-shadow(0 0 20px rgba(255, 255, 255, 0.25)) drop-shadow(0 0 40px rgba(255, 255, 255, 0.1))" 
             }} 
           />
         </motion.div>

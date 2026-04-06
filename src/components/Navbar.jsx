@@ -125,7 +125,7 @@ export default function Navbar() {
               width: "32px", 
               height: "32px", 
               objectFit: "contain",
-              filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.25))"
+              filter: "brightness(1.2) drop-shadow(0 0 10px rgba(255, 255, 255, 0.3))"
             }} 
           />
           <span style={{ 

@@ -27,7 +27,7 @@ export default function Footer() {
                 width: '45px', 
                 height: '45px', 
                 objectFit: 'contain',
-                filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.2))"
+                filter: "brightness(1.2) drop-shadow(0 0 12px rgba(255, 255, 255, 0.25))"
               }} 
             />
             <h2 style={{ fontSize: '1.6rem', margin: 0, fontWeight: '700' }}>TeamCKB</h2>
