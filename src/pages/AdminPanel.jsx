@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { db, auth } from "../firebase";
-import { collection, query, onSnapshot, orderBy, deleteDoc, doc, limit } from "firebase/firestore";
+import { collection, query, onSnapshot, orderBy, deleteDoc, doc, limit, updateDoc } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Trash2, ExternalLink, Link as LinkIcon, Edit, UserPlus, ShieldPlus, ChevronDown, Check, Search, X, MessageSquare, Mail, Calendar, User, ShieldCheck } from "lucide-react";
+import { Users, Trash2, ExternalLink, Link as LinkIcon, Edit, UserPlus, ShieldPlus, ChevronDown, Check, Search, X, MessageSquare, Mail, Calendar, User, ShieldCheck, UserCheck, ShieldAlert, History } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function AdminPanel() {
@@ -97,6 +97,39 @@ export default function AdminPanel() {
     }
   };
 
+  const handleApproveUser = async (userId) => {
+    try {
+      if (isDemo) {
+        const updated = usersList.map(u => u.uid === userId ? { ...u, approved: true } : u);
+        setUsersList(updated);
+        localStorage.setItem("mockUsers", JSON.stringify(updated));
+      } else {
+        await updateDoc(doc(db, "users", userId), { approved: true });
+      }
+      setMsg({ type: "success", text: "User approved successfully!" });
+      setTimeout(() => setMsg({ type: "", text: "" }), 3000);
+    } catch (err) {
+      setMsg({ type: "error", text: "Approval failed: " + err.message });
+    }
+  };
+
+  const handleRejectUser = async (userId, userName) => {
+    if (!window.confirm(`Reject and delete application for ${userName}?`)) return;
+    try {
+      if (isDemo) {
+        const filtered = usersList.filter(u => u.uid !== userId);
+        setUsersList(filtered);
+        localStorage.setItem("mockUsers", JSON.stringify(filtered));
+      } else {
+        await deleteDoc(doc(db, "users", userId));
+      }
+      setMsg({ type: "success", text: `Application for ${userName} rejected.` });
+      setTimeout(() => setMsg({ type: "", text: "" }), 3000);
+    } catch (err) {
+      setMsg({ type: "error", text: "Rejection failed: " + err.message });
+    }
+  };
+
   const [copyingId, setCopyingId] = useState(null);
 
   const copyToClipboard = (text) => {
@@ -177,7 +210,8 @@ export default function AdminPanel() {
 
   if (loading) return <div style={{textAlign: "center", padding: "40px"}}>Loading Admin Data...</div>;
 
-  const interns = usersList.filter(u => u.role !== 'admin' && u.role !== 'company');
+  const interns = usersList.filter(u => u.role !== 'admin' && u.role !== 'company' && u.approved !== false);
+  const pendingUsers = usersList.filter(u => u.approved === false);
   const filteredInterns = interns.filter(u => 
     u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     u.email.toLowerCase().includes(searchTerm.toLowerCase())
@@ -210,6 +244,7 @@ export default function AdminPanel() {
       <div className="glass-panel custom-scrollbar" style={{ padding: "8px", display: "flex", gap: "8px", marginBottom: "32px", overflowX: "auto", whiteSpace: "nowrap" }}>
         {[
           { id: 'users', label: 'Members', icon: Users },
+          { id: 'pending', label: `Pending (${pendingUsers.length})`, icon: UserPlus },
           { id: 'logs', label: 'Activity Logs', icon: History },
           { id: 'inquiries', label: 'Inquiries', icon: Mail },
           { id: 'viewer', label: 'Viewer Setup', icon: ShieldPlus }
@@ -243,6 +278,72 @@ export default function AdminPanel() {
                   <div style={{ display: "flex", gap: "12px", width: 'auto' }} className="mobile-stack">
                     <Link to={`/profile/${user.uid}`} className="glass-button mobile-full" style={{ padding: "8px 16px", fontSize: '0.9rem' }}><ExternalLink size={16}/> Profile</Link>
                     <button onClick={() => copyCreds(user)} className="glass-button primary mobile-full" style={{ padding: "8px 16px", fontSize: '0.9rem' }}><LinkIcon size={16}/> Credentials</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'pending' && (
+          <motion.div key="pending" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel" style={{ padding: "32px" }}>
+            <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '16px' }}>
+              <div>
+                <h2 style={{ margin: 0 }}>Pending Approvals</h2>
+                <p style={{ opacity: 0.6, fontSize: '0.9rem', marginTop: '4px' }}>Review and verify new member registrations.</p>
+              </div>
+              <div style={{ padding: '6px 14px', borderRadius: '10px', background: 'rgba(212, 163, 115, 0.1)', color: '#d4a373', fontSize: '0.85rem' }}>{pendingUsers.length} Pending</div>
+            </div>
+
+            {msg.text && (
+              <div style={{ 
+                padding: "12px", 
+                borderRadius: "10px", 
+                marginBottom: '20px',
+                background: msg.type === "success" ? "rgba(128,255,128,0.1)" : "rgba(255,128,128,0.1)", 
+                color: msg.type === "success" ? "#80ff80" : "#ff8080", 
+                border: `1px solid ${msg.type === "success" ? "rgba(128,255,128,0.1)" : "rgba(255,128,128,0.1)"}`,
+                fontSize: '0.9rem' 
+              }}>
+                {msg.text}
+              </div>
+            )}
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {pendingUsers.length === 0 ? (
+                <div style={{ textAlign: 'center', opacity: 0.5, padding: '60px' }}>
+                  <ShieldCheck size={48} style={{ marginBottom: '16px', opacity: 0.2 }} />
+                  <p>All clear! No pending applications.</p>
+                </div>
+              ) : pendingUsers.map(user => (
+                <div key={user.uid} className="glass-card mobile-stack" style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: '16px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <strong style={{ fontSize: "1.1rem" }}>{user.name}</strong>
+                      <span style={{ fontSize: '0.7rem', padding: '2px 8px', background: 'rgba(212, 163, 115, 0.15)', color: '#d4a373', borderRadius: '20px', fontWeight: 'bold', textTransform: 'uppercase' }}>{user.role}</span>
+                    </div>
+                    <div style={{ fontSize: "0.85rem", opacity: 0.6, marginTop: "4px" }}>{user.email}</div>
+                    {user.createdAt && (
+                      <div style={{ fontSize: '0.75rem', opacity: 0.4, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Calendar size={12} /> Registered: {user.createdAt?.toDate ? user.createdAt.toDate().toLocaleDateString() : 'New'}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: "12px", width: 'auto' }} className="mobile-stack">
+                    <button 
+                      onClick={() => handleRejectUser(user.uid, user.name)} 
+                      className="glass-button mobile-full" 
+                      style={{ padding: "10px 20px", fontSize: '0.9rem', color: '#ff8080', borderColor: 'rgba(255,128,128,0.2)' }}
+                    >
+                      <X size={16}/> Reject
+                    </button>
+                    <button 
+                      onClick={() => handleApproveUser(user.uid)} 
+                      className="glass-button primary mobile-full" 
+                      style={{ padding: "10px 20px", fontSize: '0.9rem' }}
+                    >
+                      <UserCheck size={16}/> Approve Member
+                    </button>
                   </div>
                 </div>
               ))}

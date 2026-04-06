@@ -58,13 +58,24 @@ export function AuthProvider({ children }) {
     if (auth.app.options.apiKey.includes("Dummy")) {
       const role = email.includes("admin") ? "admin" : (email.includes("company") ? "company" : "intern");
       const user = { uid: "mock123", email };
-      const data = { role, name: "Demo User", email, assignedInternId: "mock123" };
+      // For dummy mode, we'll assume approved if it doesn't contain 'pending'
+      const approved = !email.includes("pending");
+      const data = { role, name: "Demo User", email, assignedInternId: "mock123", approved };
       setCurrentUser(user);
       setUserData(data);
       localStorage.setItem("mockUser", JSON.stringify({...user, userData: data}));
       return user;
     }
-    return signInWithEmailAndPassword(auth, email, password);
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const docSnap = await getDoc(doc(db, "users", cred.user.uid));
+    const data = docSnap.data();
+    
+    // If not approved and not admin, sign out and throw error
+    if (data && data.approved === false && !data.Admin && data.role !== 'admin') {
+      await signOut(auth);
+      throw new Error("Your account is pending admin approval. Please wait for an administrator to verify your identity.");
+    }
+    return cred;
   }
 
   async function signup(email, password, name, role, extraData = {}) {
@@ -79,6 +90,7 @@ export function AuthProvider({ children }) {
       email: user.email,
       name,
       role,
+      approved: role === 'admin',
       Admin: role === 'admin',
       createdAt: serverTimestamp(),
       ...extraData

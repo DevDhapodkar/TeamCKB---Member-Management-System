@@ -20,7 +20,16 @@ export default function Footer() {
         {/* Brand Section */}
         <div className="mobile-stack" style={{ textAlign: 'left' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
-            <img src={logo} alt="TeamCKB Logo" style={{ width: '45px', height: '45px', objectFit: 'contain' }} />
+            <img 
+              src={logo} 
+              alt="TeamCKB Logo" 
+              style={{ 
+                width: '45px', 
+                height: '45px', 
+                objectFit: 'contain',
+                filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.2))"
+              }} 
+            />
             <h2 style={{ fontSize: '1.6rem', margin: 0, fontWeight: '700' }}>TeamCKB</h2>
           </div>
           <p style={{ fontSize: '1.2rem', fontWeight: '600', color: 'var(--wood-accent)', marginBottom: '12px', letterSpacing: '0.02em' }}>

@@ -20,7 +20,7 @@ export default function Login() {
       await login(email, password);
       navigate("/dashboard");
     } catch (err) {
-      setError("Failed to sign in. Check your credentials.");
+      setError(err.message.includes("auth/") ? "Failed to sign in. Check your credentials." : err.message);
     } finally {
       setLoading(false);
     }

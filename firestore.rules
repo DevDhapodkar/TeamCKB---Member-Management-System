@@ -25,6 +25,15 @@ service cloud.firestore {
              targetUserId in userData.assignedUserIds;
     }
 
+    function isApproved() {
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isAuthenticated() && 
+             (userData.approved == true || 
+              userData.role == 'admin' || 
+              userData.role == 'Admin' || 
+              userData.Admin == true);
+    }
+
     // Users Collection
     match /users/{userId} {
       allow read: if isAuthenticated() && (isOwner(userId) || isAdmin() || isViewerOf(userId));
@@ -35,9 +44,9 @@ service cloud.firestore {
 
     // Logs Collection
     match /logs/{logId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin() || isViewerOf(resource.data.userId));
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isApproved() && (resource.data.userId == request.auth.uid || isAdmin() || isViewerOf(resource.data.userId));
+      allow create: if isApproved();
+      allow update, delete: if isApproved() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Contacts Collection

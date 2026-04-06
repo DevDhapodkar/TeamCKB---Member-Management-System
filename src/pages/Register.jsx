@@ -19,13 +19,13 @@ export default function Register() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   
   // Tab-specific states
   const [companyName, setCompanyName] = useState("");
   const [phone, setPhone] = useState("");
   const [interest, setInterest] = useState("");
-
-  const { signup } = useAuth();
+  const { signup, logout } = useAuth();
   const navigate = useNavigate();
 
   async function handleSubmit(e) {
@@ -43,8 +43,8 @@ export default function Register() {
       // Pass extraData if the signup function supports it, or handle it here
       // For now, I'll pass it to signup (needs update in AuthContext or handle metadata)
       await signup(email, password, name, activeTab, extraData);
-      
-      navigate("/dashboard");
+      setShowSuccess(true);
+      await logout();
     } catch (err) {
       setError("Failed to create an account. " + err.message);
     } finally {
@@ -182,6 +182,69 @@ export default function Register() {
           </div>
         </div>
       </motion.div>
+      
+      <AnimatePresence>
+        {showSuccess && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(18, 9, 7, 0.8)',
+              backdropFilter: 'blur(10px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '20px'
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              className="glass-panel"
+              style={{
+                maxWidth: '500px',
+                width: '100%',
+                padding: '40px',
+                textAlign: 'center',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+              }}
+            >
+              <div style={{ 
+                width: '80px', 
+                height: '80px', 
+                background: 'rgba(212, 163, 115, 0.1)', 
+                borderRadius: '50%', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                margin: '0 auto 24px'
+              }}>
+                <CheckCircle2 size={40} color="#d4a373" />
+              </div>
+              <h2 style={{ fontSize: '2rem', marginBottom: '16px' }}>Registration Successful!</h2>
+              <p style={{ opacity: 0.7, lineHeight: '1.6', marginBottom: '32px' }}>
+                Your account for <strong>{name}</strong> has been created. <br /><br />
+                <span style={{ color: 'var(--wood-accent)', fontWeight: '600' }}>Waiting for Admin Approval.</span><br />
+                You will be able to log in once an administrator verifies your application.
+              </p>
+              <button 
+                onClick={() => navigate("/login")}
+                className="glass-button primary"
+                style={{ width: '100%', height: '54px' }}
+              >
+                Back to Login
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

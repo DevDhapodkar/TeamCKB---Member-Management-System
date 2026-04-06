@@ -118,6 +118,16 @@ export default function Navbar() {
           gap: '12px',
           flexShrink: 0
         }}>
+          <img 
+            src={logo} 
+            alt="CKB Logo" 
+            style={{ 
+              width: "32px", 
+              height: "32px", 
+              objectFit: "contain",
+              filter: "drop-shadow(0 0 8px rgba(255, 255, 255, 0.25))"
+            }} 
+          />
           <span style={{ 
             fontSize: 'clamp(1rem, 3.5vw, 1.25rem)', 
             fontWeight: '800',

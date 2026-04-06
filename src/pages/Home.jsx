@@ -61,7 +61,17 @@ export default function Home() {
           transition={{ duration: 0.8 }}
           style={{ marginBottom: "32px" }}
         >
-          <img src={logo} alt="CKB Logo" style={{ width: "100%", maxWidth: "240px", height: "auto", objectFit: "contain", filter: "drop-shadow(0 0 20px rgba(212, 163, 115, 0.3))" }} />
+          <img 
+            src={logo} 
+            alt="CKB Logo" 
+            style={{ 
+              width: "100%", 
+              maxWidth: "240px", 
+              height: "auto", 
+              objectFit: "contain", 
+              filter: "drop-shadow(0 0 20px rgba(255, 255, 255, 0.15)) drop-shadow(0 0 40px rgba(212, 163, 115, 0.1))" 
+            }} 
+          />
         </motion.div>
         
         <motion.h1 
