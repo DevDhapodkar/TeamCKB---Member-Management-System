@@ -96,7 +96,7 @@ export default function Home() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          style={{ fontSize: "3.5rem", fontWeight: "800", marginBottom: "16px", background: "linear-gradient(to right, #fff, #d4a373)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+          style={{ fontSize: "3.5rem", fontWeight: "800", marginBottom: "16px" }}
         >
           CHALO KHUSHIYAN BATEIN
         </motion.h1>

@@ -4,7 +4,9 @@ import { useAuth } from "../contexts/AuthContext";
 import { db, auth } from "../firebase";
 import { collection, query, where, getDocs, doc, getDoc, orderBy } from "firebase/firestore";
 import { motion } from "framer-motion";
-import { User, Calendar, Clock, MapPin, Eye } from "lucide-react";
+import { User, Calendar, Clock, MapPin, Eye, Upload, FileText, Download, Trash2, Plus, ShieldCheck } from "lucide-react";
+import { uploadFile } from "../utils/storage";
+import { updateDoc } from "firebase/firestore";
 
 export default function Profile() {
   const { id } = useParams();
@@ -14,6 +16,8 @@ export default function Profile() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalHours, setTotalHours] = useState(0);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [newDocName, setNewDocName] = useState("");
 
   const isDemo = auth.app.options.apiKey.includes("Dummy");
 
@@ -65,6 +69,55 @@ export default function Profile() {
     if (!authLoading) fetchProfile();
   }, [id, authLoading, isDemo]);
 
+  const handleDocUpload = async (file) => {
+    if (!file || !newDocName) return alert("Please provide a document name first.");
+    setUploadingDoc(true);
+    try {
+      const url = await uploadFile(file);
+      const newDoc = { name: newDocName, url, uploadedAt: new Date().toISOString() };
+      const updatedDocs = [...(profileUser.documents || []), newDoc];
+      
+      if (isDemo) {
+        const updatedUser = { ...profileUser, documents: updatedDocs };
+        setProfileUser(updatedUser);
+        const demoUsers = JSON.parse(localStorage.getItem("mockUsers")) || [];
+        const index = demoUsers.findIndex(u => u.uid === id);
+        if (index !== -1) {
+          demoUsers[index] = updatedUser;
+          localStorage.setItem("mockUsers", JSON.stringify(demoUsers));
+        }
+      } else {
+        await updateDoc(doc(db, "users", id), { documents: updatedDocs });
+        setProfileUser(prev => ({ ...prev, documents: updatedDocs }));
+      }
+      setNewDocName("");
+      alert("Document uploaded!");
+    } catch (err) {
+      alert("Upload failed: " + err.message);
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const deleteDocItem = async (index) => {
+    if (!window.confirm("Remove this document?")) return;
+    const updatedDocs = profileUser.documents.filter((_, i) => i !== index);
+    
+    if (isDemo) {
+      const updatedUser = { ...profileUser, documents: updatedDocs };
+      setProfileUser(updatedUser);
+      const demoUsers = JSON.parse(localStorage.getItem("mockUsers")) || [];
+      const idx = demoUsers.findIndex(u => u.uid === id);
+      if (idx !== -1) {
+        demoUsers[idx] = updatedUser;
+        localStorage.setItem("mockUsers", JSON.stringify(demoUsers));
+      }
+    } else {
+      await updateDoc(doc(db, "users", id), { documents: updatedDocs });
+      setProfileUser(prev => ({ ...prev, documents: updatedDocs }));
+    }
+  };
+
   if (authLoading || loading) return <h3 style={{textAlign: "center", padding: "48px"}}>Loading Profile...</h3>;
   
   if (!profileUser) return <h3 style={{textAlign: "center", padding: "48px"}}>User Not Found</h3>;
@@ -106,7 +159,63 @@ export default function Profile() {
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Eye size={14}/> {profileUser.role?.toUpperCase()}</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14}/> Total: <strong>{totalHours}h</strong></span>
           </div>
+          <div style={{ marginTop: '16px', display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            {profileUser.certificateUrl && (
+              <a href={profileUser.certificateUrl} target="_blank" rel="noreferrer" className="glass-button primary" style={{ fontSize: '0.8rem', padding: '6px 16px' }}>
+                <ShieldCheck size={14}/> View Official Certificate
+              </a>
+            )}
+            {profileUser.reportUrl && (
+              <a href={profileUser.reportUrl} target="_blank" rel="noreferrer" className="glass-button" style={{ fontSize: '0.8rem', padding: '6px 16px', borderColor: 'var(--wood-accent)' }}>
+                <FileText size={14} color="var(--wood-accent)"/> View Internship Report
+              </a>
+            )}
+          </div>
         </div>
+      </motion.div>
+
+      <motion.div className="glass-panel" style={{ padding: '32px' }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <h2 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}><FileText size={20} color="#d4a373"/> Documents</h2>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+          {profileUser.documents?.map((docItem, idx) => (
+            <div key={idx} className="glass-card" style={{ padding: '16px', position: 'relative' }}>
+              <div style={{ fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '4px' }}>{docItem.name}</div>
+              <div style={{ fontSize: '0.7rem', opacity: 0.5, marginBottom: '12px' }}>{new Date(docItem.uploadedAt).toLocaleDateString()}</div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <a href={docItem.url} target="_blank" rel="noreferrer" className="glass-button" style={{ flex: 1, padding: '4px', fontSize: '0.75rem' }}><Download size={12}/></a>
+                {currentUser?.uid === id && (
+                  <button onClick={() => deleteDocItem(idx)} className="glass-button" style={{ background: 'rgba(255,100,100,0.1)', borderColor: 'rgba(255,100,100,0.2)', padding: '4px' }}>
+                    <Trash2 size={12} color="#ff8080"/>
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+          {(!profileUser.documents || profileUser.documents.length === 0) && (
+            <div style={{ gridColumn: '1/-1', textAlign: 'center', opacity: 0.5, padding: '20px' }}>No documents uploaded.</div>
+          )}
+        </div>
+
+        {currentUser?.uid === id && (
+          <div className="glass-card" style={{ padding: '20px', background: 'rgba(255,255,255,0.03)' }}>
+            <h4 style={{ margin: '0 0 16px 0', fontSize: '0.9rem' }}>Upload New Document</h4>
+            <div className="mobile-stack" style={{ display: 'flex', gap: '10px' }}>
+              <input 
+                type="text" 
+                className="glass-input" 
+                placeholder="Document Name (e.g. Aadhar)" 
+                value={newDocName} 
+                onChange={e => setNewDocName(e.target.value)} 
+                style={{ flex: 1 }}
+              />
+              <label className="glass-button primary" style={{ cursor: 'pointer', minWidth: '120px' }}>
+                {uploadingDoc ? "..." : <><Plus size={16}/> Upload</>}
+                <input type="file" hidden onChange={e => handleDocUpload(e.target.files[0])} disabled={uploadingDoc} />
+              </label>
+            </div>
+          </div>
+        )}
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>

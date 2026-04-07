@@ -32,11 +32,17 @@ function MemberDashboard({ currentUser, userData, isDemo }) {
     arrivalTime: "",
     timeout: "",
     totalHours: "",
+    arrivalTime: "",
+    timeout: "",
+    durationTime: "",
+    attendance: "Present",
     activities: "",
     interactedWith: "",
     discussions: "",
     thoughts: "",
-    challenges: ""
+    challenges: "",
+    remark: "",
+    impactReport: ""
   });
 
   useEffect(() => {
@@ -56,7 +62,28 @@ function MemberDashboard({ currentUser, userData, isDemo }) {
     return unsubscribe;
   }, [currentUser, isDemo]);
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    let updatedData = { ...formData, [name]: value };
+
+    // Auto-calculate duration if arrival and timeout are present
+    if (name === "arrivalTime" || name === "timeout") {
+      const arrival = name === "arrivalTime" ? value : formData.arrivalTime;
+      const timeout = name === "timeout" ? value : formData.timeout;
+      
+      if (arrival && timeout) {
+        const [h1, m1] = arrival.split(":").map(Number);
+        const [h2, m2] = timeout.split(":").map(Number);
+        const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+        if (diff > 0) {
+          const hrs = (diff / 60).toFixed(2);
+          updatedData.totalHours = hrs;
+          updatedData.durationTime = `${Math.floor(diff / 60)}h ${diff % 60}m`;
+        }
+      }
+    }
+    setFormData(updatedData);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -78,7 +105,16 @@ function MemberDashboard({ currentUser, userData, isDemo }) {
       }
       setSuccessMsg("Log successfully submitted!");
       setTimeout(() => setSuccessMsg(""), 3000);
-      setFormData({ ...formData, activities: "", interactedWith: "", discussions: "", thoughts: "", challenges: "" });
+      setFormData({ 
+        ...formData, 
+        activities: "", 
+        interactedWith: "", 
+        discussions: "", 
+        thoughts: "", 
+        challenges: "",
+        remark: "",
+        impactReport: ""
+      });
     } catch (error) {
       console.error("Error adding log:", error);
     }
@@ -141,16 +177,45 @@ function MemberDashboard({ currentUser, userData, isDemo }) {
             </div>
             <div className="mobile-full">
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
+                <ShieldCheck size={14} color="#d4a373" /> Attendance Status
+              </label>
+              <select name="attendance" className="glass-input" value={formData.attendance} onChange={handleChange}>
+                <option value="Present">Present</option>
+                <option value="On Leave">On Leave</option>
+                <option value="Half Day">Half Day</option>
+                <option value="Late">Late Arrival</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="responsive-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+            <div className="mobile-full">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
                 <MessageSquare size={14} color="#d4a373" /> Key Discussions
               </label>
               <input type="text" name="discussions" className="glass-input" required value={formData.discussions} onChange={handleChange} placeholder="Decided to..." />
             </div>
+            <div className="mobile-full" title="Calculated automatically">
+              <label style={{ display: 'block', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>Duration Summary</label>
+              <input type="text" className="glass-input" value={formData.durationTime} readOnly placeholder="e.g. 4h 30m" style={{ background: 'rgba(255,255,255,0.03)', opacity: 0.7 }} />
+            </div>
           </div>
+
           <div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
-              <Target size={14} color="#d4a373" /> Challenges Faced
+              <TrendingUp size={14} color="#d4a373" /> Impact Report
             </label>
-            <textarea name="challenges" className="glass-input" value={formData.challenges} onChange={handleChange} rows="2" placeholder="Any blockers? (Optional)" />
+            <textarea name="impactReport" className="glass-input" value={formData.impactReport} onChange={handleChange} rows="2" placeholder="Summary of impact created today..." />
+          </div>
+
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
+              <Target size={14} color="#d4a373" /> Challenges & Remarks
+            </label>
+            <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <textarea name="challenges" className="glass-input" value={formData.challenges} onChange={handleChange} rows="2" placeholder="Blockers? (Optional)" />
+              <textarea name="remark" className="glass-input" value={formData.remark} onChange={handleChange} rows="2" placeholder="Internal remarks..." />
+            </div>
           </div>
           <button type="submit" className="glass-button primary" style={{ marginTop: '10px', height: '56px' }}>Submit Log Entry</button>
         </form>

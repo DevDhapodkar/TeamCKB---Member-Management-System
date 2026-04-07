@@ -3,8 +3,10 @@ import { useAuth } from "../contexts/AuthContext";
 import { db, auth } from "../firebase";
 import { collection, query, onSnapshot, orderBy, deleteDoc, doc, limit, updateDoc } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Trash2, ExternalLink, Link as LinkIcon, Edit, UserPlus, ShieldPlus, ChevronDown, Check, Search, X, MessageSquare, Mail, Calendar, User, ShieldCheck, UserCheck, ShieldAlert, History } from "lucide-react";
+import { Users, Trash2, ExternalLink, Link as LinkIcon, Edit, UserPlus, ShieldPlus, ChevronDown, Check, Search, X, MessageSquare, Mail, Calendar, User, ShieldCheck, UserCheck, ShieldAlert, History, FileText, Upload, Download, Award, FolderOpen } from "lucide-react";
 import { Link } from "react-router-dom";
+import { uploadFile } from "../utils/storage";
+import jsPDF from "jspdf";
 
 export default function AdminPanel() {
   const { userData } = useAuth();
@@ -15,6 +17,10 @@ export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState("users");
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [reportData, setReportData] = useState(null);
+  const [uploadingCert, setUploadingCert] = useState(null);
+  const [uploadingReport, setUploadingReport] = useState(null);
+  const [expandedUserDocs, setExpandedUserDocs] = useState(null);
   
   // New Viewer Account States
   const { createViewerAccount } = useAuth();
@@ -204,6 +210,49 @@ export default function AdminPanel() {
     setCreatingViewer(false);
   };
 
+  const handleUploadCertificate = async (userId, file) => {
+    if (!file) return;
+    setUploadingCert(userId);
+    try {
+      const url = await uploadFile(file);
+      if (isDemo) {
+        const updated = usersList.map(u => u.uid === userId ? { ...u, certificateUrl: url } : u);
+        setUsersList(updated);
+        localStorage.setItem("mockUsers", JSON.stringify(updated));
+      } else {
+        await updateDoc(doc(db, "users", userId), { certificateUrl: url });
+      }
+      setMsg({ type: "success", text: "Certificate uploaded successfully!" });
+    } catch (err) {
+      setMsg({ type: "error", text: "Upload failed: " + err.message });
+    } finally {
+      setUploadingCert(null);
+      setTimeout(() => setMsg({ type: "", text: "" }), 3000);
+    }
+  };
+
+  const handleUploadReport = async (userId, file) => {
+    if (!file) return;
+    setUploadingReport(userId);
+    try {
+      const url = await uploadFile(file);
+      if (isDemo) {
+        const updated = usersList.map(u => u.uid === userId ? { ...u, reportUrl: url } : u);
+        setUsersList(updated);
+        localStorage.setItem("mockUsers", JSON.stringify(updated));
+      } else {
+        await updateDoc(doc(db, "users", userId), { reportUrl: url });
+      }
+      setMsg({ type: "success", text: "Report uploaded successfully!" });
+    } catch (err) {
+      setMsg({ type: "error", text: "Report upload failed: " + err.message });
+    } finally {
+      setUploadingReport(null);
+      setTimeout(() => setMsg({ type: "", text: "" }), 3000);
+    }
+  };
+
+
   const toggleAssignedId = (id) => {
     setAssignedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
@@ -270,15 +319,57 @@ export default function AdminPanel() {
             
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               {interns.length === 0 ? <p style={{ textAlign: 'center', opacity: 0.5, padding: '40px' }}>No users found.</p> : interns.map(user => (
-                <div key={user.uid} className="glass-card mobile-stack" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: '16px' }}>
-                  <div>
-                    <strong style={{ fontSize: "1.1rem" }}>{user.name}</strong> <span style={{ opacity: 0.6, fontSize: "0.85rem" }}>({user.role})</span>
-                    <div style={{ fontSize: "0.85rem", color: "var(--wood-accent)", marginTop: "4px" }}>{user.email}</div>
+                <div key={user.uid} className="glass-card" style={{ padding: "16px 24px" }}>
+                  <div className="mobile-stack" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: '16px' }}>
+                    <div>
+                      <strong style={{ fontSize: "1.1rem" }}>{user.name}</strong> <span style={{ opacity: 0.6, fontSize: "0.85rem" }}>({user.role})</span>
+                      <div style={{ fontSize: "0.85rem", color: "var(--wood-accent)", marginTop: "4px" }}>{user.email}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: "12px", width: 'auto' }} className="mobile-stack">
+                      <button 
+                        onClick={() => setExpandedUserDocs(expandedUserDocs === user.uid ? null : user.uid)} 
+                        className={`glass-button ${expandedUserDocs === user.uid ? 'primary' : ''}`} 
+                        style={{ padding: "8px 16px", fontSize: '0.9rem' }}
+                      >
+                        <FolderOpen size={16}/> Docs
+                      </button>
+                      <label className="glass-button" style={{ padding: "8px 16px", fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {uploadingReport === user.uid ? "..." : <><FileText size={16}/> Report</>}
+                        <input type="file" hidden onChange={(e) => handleUploadReport(user.uid, e.target.files[0])} />
+                      </label>
+                      <label className="glass-button" style={{ padding: "8px 16px", fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {uploadingCert === user.uid ? "..." : <><Award size={16}/> Cert</>}
+                        <input type="file" hidden onChange={(e) => handleUploadCertificate(user.uid, e.target.files[0])} />
+                      </label>
+                      <Link to={`/profile/${user.uid}`} className="glass-button mobile-full" style={{ padding: "8px 16px", fontSize: '0.9rem' }}><ExternalLink size={16}/> Profile</Link>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", gap: "12px", width: 'auto' }} className="mobile-stack">
-                    <Link to={`/profile/${user.uid}`} className="glass-button mobile-full" style={{ padding: "8px 16px", fontSize: '0.9rem' }}><ExternalLink size={16}/> Profile</Link>
-                    <button onClick={() => copyCreds(user)} className="glass-button primary mobile-full" style={{ padding: "8px 16px", fontSize: '0.9rem' }}><LinkIcon size={16}/> Credentials</button>
-                  </div>
+                  
+                  {/* Expandable Documents Section */}
+                  <AnimatePresence>
+                    {expandedUserDocs === user.uid && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }} 
+                        animate={{ height: 'auto', opacity: 1 }} 
+                        exit={{ height: 0, opacity: 0 }}
+                        style={{ overflow: 'hidden', width: '100%', borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '12px' }}
+                      >
+                        <div style={{ padding: '16px 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+                          {user.documents && user.documents.length > 0 ? user.documents.map((docItem, idx) => (
+                            <div key={idx} className="glass-card" style={{ padding: '12px', background: 'rgba(255,255,255,0.03)' }}>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>{docItem.name}</div>
+                              <div style={{ fontSize: '0.7rem', opacity: 0.5, marginBottom: '8px' }}>{new Date(docItem.uploadedAt).toLocaleDateString()}</div>
+                              <a href={docItem.url} target="_blank" rel="noreferrer" className="glass-button" style={{ width: '100%', padding: '6px', fontSize: '0.75rem' }}>
+                                <Download size={14}/> View/Download
+                              </a>
+                            </div>
+                          )) : (
+                            <div style={{ gridColumn: '1/-1', textAlign: 'center', opacity: 0.5, padding: '12px', fontSize: '0.85rem' }}>No documents uploaded by member.</div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               ))}
             </div>
@@ -554,6 +645,7 @@ export default function AdminPanel() {
           </motion.div>
         )}
       </AnimatePresence>
+
     </div>
   );
 }

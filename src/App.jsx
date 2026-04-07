@@ -46,11 +46,23 @@ const PageWrapper = ({ children }) => (
   </motion.div>
 );
 
+const BackgroundBlobs = () => (
+  <>
+    <div className="blobs-container">
+      <div className="blob blob-1"></div>
+      <div className="blob blob-2"></div>
+      <div className="blob blob-3"></div>
+    </div>
+    <div className="bg-noise"></div>
+  </>
+);
+
 function AppContent() {
   return (
     <Router>
+      <BackgroundBlobs />
       <Navbar />
-      <div style={{ padding: '0 24px 48px', maxWidth: '1200px', margin: '0 auto', minHeight: 'calc(100vh - 200px)' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: '0 24px 48px', maxWidth: '1200px', margin: '0 auto', minHeight: 'calc(100vh - 200px)' }}>
         <AnimatePresence mode="wait">
           <Routes>
             <Route path="/" element={<PageWrapper><Home /></PageWrapper>} />

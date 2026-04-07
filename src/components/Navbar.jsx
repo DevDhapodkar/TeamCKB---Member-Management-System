@@ -35,12 +35,27 @@ export default function Navbar() {
     <div className={mobile ? "mobile-stack" : "desktop-only"} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
       {currentUser ? (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 14px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <Link 
+            to={`/profile/${currentUser.uid}`} 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '10px', 
+              padding: '6px 14px', 
+              borderRadius: '12px', 
+              background: 'rgba(255,255,255,0.02)', 
+              border: '1px solid rgba(255,255,255,0.05)',
+              textDecoration: 'none',
+              color: 'inherit',
+              transition: 'all 0.3s ease'
+            }}
+            className="hover-card"
+          >
             <UserCircle size={18} color="#d4a373" />
             <span style={{ fontSize: '0.9rem', opacity: 0.9 }}>
               <strong>{userData?.name || currentUser.email.split('@')[0]}</strong>
             </span>
-          </div>
+          </Link>
           
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }} className={mobile ? "mobile-stack" : ""}>
             {isAdmin && (
@@ -132,9 +147,7 @@ export default function Navbar() {
             fontSize: 'clamp(1rem, 3.5vw, 1.25rem)', 
             fontWeight: '800',
             letterSpacing: '0.04em',
-            background: 'linear-gradient(to right, #ffffff, #d4a373)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
+            color: 'var(--wood-highlight)',
             whiteSpace: 'nowrap'
           }}>
             CHALO KHUSHIYAN BATEIN
