@@ -12,7 +12,6 @@ import {
   ShieldCheck, 
   Heart, 
   Building2, 
-  TrendingUp, 
   DollarSign, 
   CheckCircle2, 
   ArrowRight,
@@ -42,7 +41,8 @@ function MemberDashboard({ currentUser, userData, isDemo }) {
     thoughts: "",
     challenges: "",
     remark: "",
-    impactReport: ""
+    challenges: "",
+    remark: ""
   });
 
   useEffect(() => {
@@ -113,7 +113,8 @@ function MemberDashboard({ currentUser, userData, isDemo }) {
         thoughts: "", 
         challenges: "",
         remark: "",
-        impactReport: ""
+        challenges: "",
+        remark: ""
       });
     } catch (error) {
       console.error("Error adding log:", error);
@@ -201,12 +202,6 @@ function MemberDashboard({ currentUser, userData, isDemo }) {
             </div>
           </div>
 
-          <div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
-              <TrendingUp size={14} color="#d4a373" /> Impact Report
-            </label>
-            <textarea name="impactReport" className="glass-input" value={formData.impactReport} onChange={handleChange} rows="2" placeholder="Summary of impact created today..." />
-          </div>
 
           <div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
@@ -473,8 +468,12 @@ export default function Dashboard() {
           <p style={{ opacity: 0.6, fontSize: '1.1rem' }}>Your {userData?.role} control center.</p>
         </div>
         <div className="glass-panel" style={{ padding: '10px 24px', display: 'flex', alignItems: 'center', gap: '12px', borderRadius: '14px' }}>
-          <LayoutDashboard size={20} color="#d4a373" />
-          <span style={{ fontWeight: 'bold', textTransform: 'capitalize', fontSize: '0.9rem' }}>{userData?.role} View</span>
+          {userData?.photoURL ? (
+            <img src={userData.photoURL} alt="Profile" style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--wood-accent)' }} />
+          ) : (
+            <LayoutDashboard size={20} color="#d4a373" />
+          )}
+          <span style={{ fontWeight: 'bold', textTransform: 'capitalize', fontSize: '0.9rem' }}>{userData?.role?.toLowerCase() || 'partner'} View</span>
         </div>
       </header>
       {renderDashboard()}

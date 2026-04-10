@@ -9,8 +9,7 @@ service cloud.firestore {
     function isAdmin() {
       let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       return isAuthenticated() && 
-             (userData.role == 'admin' || 
-              userData.role == 'Admin' || 
+             (userData.role.lower() == 'admin' || 
               userData.Admin == true);
     }
 
@@ -21,7 +20,7 @@ service cloud.firestore {
     function isViewerOf(targetUserId) {
       let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       return isAuthenticated() && 
-             userData.role == 'viewer' && 
+             userData.role.lower() == 'viewer' && 
              targetUserId in userData.assignedUserIds;
     }
 
@@ -29,14 +28,16 @@ service cloud.firestore {
       let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       return isAuthenticated() && 
              (userData.approved == true || 
-              userData.role == 'admin' || 
-              userData.role == 'Admin' || 
+              userData.role.lower() == 'admin' || 
               userData.Admin == true);
     }
 
     // Users Collection
     match /users/{userId} {
-      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin() || isViewerOf(userId));
+      // Only allow public reading of basic profile info for approved interns/volunteers
+      allow read: if (resource.data.approved == true && 
+                      resource.data.role.lower() in ['intern', 'volunteer']) || 
+                     (isAuthenticated() && (isOwner(userId) || isAdmin() || isViewerOf(userId)));
       allow create: if isAuthenticated() && (isOwner(userId) || isAdmin());
       allow update: if isAuthenticated() && (isOwner(userId) || isAdmin());
       allow delete: if isAdmin();

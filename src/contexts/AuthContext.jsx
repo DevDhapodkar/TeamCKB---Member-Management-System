@@ -70,8 +70,12 @@ export function AuthProvider({ children }) {
     const docSnap = await getDoc(doc(db, "users", cred.user.uid));
     const data = docSnap.data();
     
+    // Normalize role and check for legacy Admin field
+    const normalizedRole = data?.role?.toLowerCase();
+    const isActuallyAdmin = normalizedRole === 'admin' || data?.Admin === true;
+
     // If not approved and not admin, sign out and throw error
-    if (data && data.approved === false && !data.Admin && data.role !== 'admin') {
+    if (data && data.approved === false && !isActuallyAdmin) {
       await signOut(auth);
       throw new Error("Your account is pending admin approval. Please wait for an administrator to verify your identity.");
     }
@@ -89,9 +93,9 @@ export function AuthProvider({ children }) {
       uid: user.uid,
       email: user.email,
       name,
-      role,
-      approved: role === 'admin',
-      Admin: role === 'admin',
+      role: role.toLowerCase(),
+      approved: role.toLowerCase() === 'admin',
+      Admin: role.toLowerCase() === 'admin',
       createdAt: serverTimestamp(),
       ...extraData
     };

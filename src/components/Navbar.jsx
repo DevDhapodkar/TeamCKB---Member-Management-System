@@ -51,7 +51,11 @@ export default function Navbar() {
             }}
             className="hover-card"
           >
-            <UserCircle size={18} color="#d4a373" />
+            {userData?.photoURL ? (
+              <img src={userData.photoURL} alt="Profile" style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--wood-accent)' }} />
+            ) : (
+              <UserCircle size={18} color="#d4a373" />
+            )}
             <span style={{ fontSize: '0.9rem', opacity: 0.9 }}>
               <strong>{userData?.name || currentUser.email.split('@')[0]}</strong>
             </span>
@@ -64,7 +68,7 @@ export default function Navbar() {
               </Link>
             )}
             
-            {(userData?.role?.toLowerCase() === 'intern' || userData?.role?.toLowerCase() === 'volunteer' || userData?.role?.toLowerCase() === 'viewer') && (
+            {(['intern', 'volunteer', 'viewer', 'donor', 'sponsor'].includes(userData?.role?.toLowerCase())) && (
               <Link to="/dashboard" onClick={() => setIsMenuOpen(false)} className="glass-button" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
                 <LayoutDashboard size={16} /> Dashboard
               </Link>

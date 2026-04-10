@@ -1,12 +1,18 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { db, auth } from "../firebase";
-import { collection, query, onSnapshot, orderBy, deleteDoc, doc, limit, updateDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Trash2, ExternalLink, Link as LinkIcon, Edit, UserPlus, ShieldPlus, ChevronDown, Check, Search, X, MessageSquare, Mail, Calendar, User, ShieldCheck, UserCheck, ShieldAlert, History, FileText, Upload, Download, Award, FolderOpen } from "lucide-react";
+import { ShieldAlert, Award, Star, History, Users, UserPlus, Mail, ShieldPlus, Heart, PieChart, DollarSign, LayoutDashboard } from "lucide-react";
 import { Link } from "react-router-dom";
 import { uploadFile } from "../utils/storage";
-import jsPDF from "jspdf";
+
+import AdminSidebar from "../components/AdminSidebar";
+import AdminOverview from "../components/AdminOverview";
+import MemberHub from "../components/MemberHub";
+import ApprovalsHub from "../components/ApprovalsHub";
+import ActivityHub from "../components/ActivityHub";
+import StakeholderHub from "../components/StakeholderHub";
 
 export default function AdminPanel() {
   const { userData } = useAuth();
@@ -14,13 +20,18 @@ export default function AdminPanel() {
   const [logsList, setLogsList] = useState([]);
   const [contactsList, setContactsList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("users");
+  const [activeTab, setActiveTab] = useState("overview"); // Default to Overview
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [reportData, setReportData] = useState(null);
   const [uploadingCert, setUploadingCert] = useState(null);
   const [uploadingReport, setUploadingReport] = useState(null);
   const [expandedUserDocs, setExpandedUserDocs] = useState(null);
+  const [awardInputs, setAwardInputs] = useState({}); // {userId: {month: 'July', year: '2025'}}
+  const [uploadingPhoto, setUploadingPhoto] = useState(null);
+  
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const years = Array.from({length: 5}, (_, i) => (new Date().getFullYear() + i).toString());
   
   // New Viewer Account States
   const { createViewerAccount } = useAuth();
@@ -252,6 +263,76 @@ export default function AdminPanel() {
     }
   };
 
+  const handleAdminPhotoUpload = async (userId, file) => {
+    if (!file) return;
+    setUploadingPhoto(userId);
+    try {
+      const url = await uploadFile(file);
+      if (isDemo) {
+        const updated = usersList.map(u => u.uid === userId ? { ...u, photoURL: url } : u);
+        setUsersList(updated);
+        localStorage.setItem("mockUsers", JSON.stringify(updated));
+      } else {
+        await updateDoc(doc(db, "users", userId), { photoURL: url });
+      }
+      setMsg({ type: "success", text: "Profile picture updated!" });
+    } catch (err) {
+      setMsg({ type: "error", text: "Photo upload failed: " + err.message });
+    } finally {
+      setUploadingPhoto(null);
+      setTimeout(() => setMsg({ type: "", text: "" }), 3000);
+    }
+  };
+
+  const handleSetAward = async (userId, type, val) => {
+    if (!val) return;
+    
+    try {
+      const field = type === 'month' ? 'awardMonth' : 'awardYear';
+      const userToAward = usersList.find(u => u.uid === userId);
+      const role = userToAward?.role;
+
+      // 1. Find others with this award in same role and clear them
+      const othersToClear = usersList.filter(u => u.role === role && u[field] && u.uid !== userId);
+      
+      if (isDemo) {
+        let updated = usersList.map(u => {
+          if (u.uid === userId) return { ...u, [field]: val };
+          if (u.role === role && u[field]) return { ...u, [field]: null };
+          return u;
+        });
+        setUsersList(updated);
+        localStorage.setItem("mockUsers", JSON.stringify(updated));
+      } else {
+        // Clear old winners
+        for (const u of othersToClear) {
+          await updateDoc(doc(db, "users", u.uid), { [field]: null });
+        }
+        // Set new winner
+        await updateDoc(doc(db, "users", userId), { [field]: val });
+      }
+      setMsg({ type: "success", text: `${userToAward.name} is now the ${type === 'month' ? 'Month' : 'Year'} winner!` });
+    } catch (err) {
+      setMsg({ type: "error", text: "Failed to set award: " + err.message });
+    }
+  };
+
+  const handleClearAward = async (userId, type) => {
+    try {
+      const field = type === 'month' ? 'awardMonth' : 'awardYear';
+      if (isDemo) {
+        const updated = usersList.map(u => u.uid === userId ? { ...u, [field]: null } : u);
+        setUsersList(updated);
+        localStorage.setItem("mockUsers", JSON.stringify(updated));
+      } else {
+        await updateDoc(doc(db, "users", userId), { [field]: null });
+      }
+      setMsg({ type: "success", text: "Award cleared!" });
+    } catch (err) {
+      setMsg({ type: "error", text: "Failed to clear award: " + err.message });
+    }
+  };
+
 
   const toggleAssignedId = (id) => {
     setAssignedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
@@ -259,7 +340,10 @@ export default function AdminPanel() {
 
   if (loading) return <div style={{textAlign: "center", padding: "40px"}}>Loading Admin Data...</div>;
 
-  const interns = usersList.filter(u => u.role !== 'admin' && u.role !== 'company' && u.approved !== false);
+  const interns = usersList.filter(u => {
+    const role = u.role?.toLowerCase();
+    return role !== 'admin' && role !== 'company' && u.approved !== false;
+  });
   const pendingUsers = usersList.filter(u => u.approved === false);
   const filteredInterns = interns.filter(u => 
     u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -278,374 +362,99 @@ export default function AdminPanel() {
 
   return (
     <div className="container" style={{ padding: '20px 0' }}>
-      <header className="mobile-stack" style={{ marginBottom: "40px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "24px" }}>
+      <header style={{ marginBottom: "40px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '24px' }}>
         <div>
-          <h1 style={{ fontSize: "2.5rem", marginBottom: "8px" }}>Admin Console</h1>
-          <p style={{ opacity: 0.6, fontSize: "1.1rem" }}>System-wide management and monitoring.</p>
+          <h1 style={{ fontSize: "2rem", marginBottom: "4px" }}>Admin Command Centre</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', opacity: 0.6 }}>
+            <span style={{ color: 'var(--wood-accent)' }}>Admin</span>
+            <span>/</span>
+            <span style={{ textTransform: 'capitalize' }}>{activeTab}</span>
+          </div>
         </div>
-        <div className="glass-panel" style={{ padding: "10px 24px", borderRadius: "14px", display: "flex", alignItems: "center", gap: "10px" }}>
-          <ShieldAlert size={20} color="#ff8080" />
-          <span style={{ fontWeight: "bold", fontSize: "0.9rem" }}>Root Access</span>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <div className="glass-panel" style={{ padding: "8px 16px", borderRadius: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <div className="live-indicator" style={{ margin: 0 }}></div>
+            <span style={{ fontWeight: "bold", fontSize: "0.8rem", color: '#80ff80' }}>LIVE MONITORING</span>
+          </div>
+          <div className="glass-panel" style={{ padding: "8px 16px", borderRadius: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <ShieldAlert size={16} color="#ff8080" />
+            <span style={{ fontWeight: "bold", fontSize: "0.8rem" }}>ROOT ACCESS</span>
+          </div>
         </div>
       </header>
 
-      {/* Responsive Tabs Navigation */}
-      <div className="glass-panel custom-scrollbar" style={{ padding: "8px", display: "flex", gap: "8px", marginBottom: "32px", overflowX: "auto", whiteSpace: "nowrap" }}>
-        {[
-          { id: 'users', label: 'Members', icon: Users },
-          { id: 'pending', label: `Pending (${pendingUsers.length})`, icon: UserPlus },
-          { id: 'logs', label: 'Activity Logs', icon: History },
-          { id: 'inquiries', label: 'Inquiries', icon: Mail },
-          { id: 'viewer', label: 'Viewer Setup', icon: ShieldPlus }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`glass-button ${activeTab === tab.id ? 'primary' : ''}`}
-            style={{ flex: "1", minWidth: "140px", padding: "12px" }}
-          >
-            <tab.icon size={18} /> {tab.label}
-          </button>
-        ))}
-      </div>
+      <div className="admin-layout">
+        <AdminSidebar 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab} 
+          pendingCount={pendingUsers.length} 
+        />
 
-      <AnimatePresence mode="wait">
-        {activeTab === 'users' && (
-          <motion.div key="users" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel" style={{ padding: "32px" }}>
-            <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '16px' }}>
-              <h2 style={{ margin: 0 }}>Verified Members</h2>
-              <div style={{ padding: '6px 14px', borderRadius: '10px', background: 'rgba(212, 163, 115, 0.1)', color: '#d4a373', fontSize: '0.85rem' }}>{interns.length} Total</div>
-            </div>
-            
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {interns.length === 0 ? <p style={{ textAlign: 'center', opacity: 0.5, padding: '40px' }}>No users found.</p> : interns.map(user => (
-                <div key={user.uid} className="glass-card" style={{ padding: "16px 24px" }}>
-                  <div className="mobile-stack" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: '16px' }}>
-                    <div>
-                      <strong style={{ fontSize: "1.1rem" }}>{user.name}</strong> <span style={{ opacity: 0.6, fontSize: "0.85rem" }}>({user.role})</span>
-                      <div style={{ fontSize: "0.85rem", color: "var(--wood-accent)", marginTop: "4px" }}>{user.email}</div>
-                    </div>
-                    <div style={{ display: "flex", gap: "12px", width: 'auto' }} className="mobile-stack">
-                      <button 
-                        onClick={() => setExpandedUserDocs(expandedUserDocs === user.uid ? null : user.uid)} 
-                        className={`glass-button ${expandedUserDocs === user.uid ? 'primary' : ''}`} 
-                        style={{ padding: "8px 16px", fontSize: '0.9rem' }}
-                      >
-                        <FolderOpen size={16}/> Docs
-                      </button>
-                      <label className="glass-button" style={{ padding: "8px 16px", fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {uploadingReport === user.uid ? "..." : <><FileText size={16}/> Report</>}
-                        <input type="file" hidden onChange={(e) => handleUploadReport(user.uid, e.target.files[0])} />
-                      </label>
-                      <label className="glass-button" style={{ padding: "8px 16px", fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {uploadingCert === user.uid ? "..." : <><Award size={16}/> Cert</>}
-                        <input type="file" hidden onChange={(e) => handleUploadCertificate(user.uid, e.target.files[0])} />
-                      </label>
-                      <Link to={`/profile/${user.uid}`} className="glass-button mobile-full" style={{ padding: "8px 16px", fontSize: '0.9rem' }}><ExternalLink size={16}/> Profile</Link>
-                    </div>
-                  </div>
-                  
-                  {/* Expandable Documents Section */}
-                  <AnimatePresence>
-                    {expandedUserDocs === user.uid && (
-                      <motion.div 
-                        initial={{ height: 0, opacity: 0 }} 
-                        animate={{ height: 'auto', opacity: 1 }} 
-                        exit={{ height: 0, opacity: 0 }}
-                        style={{ overflow: 'hidden', width: '100%', borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '12px' }}
-                      >
-                        <div style={{ padding: '16px 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
-                          {user.documents && user.documents.length > 0 ? user.documents.map((docItem, idx) => (
-                            <div key={idx} className="glass-card" style={{ padding: '12px', background: 'rgba(255,255,255,0.03)' }}>
-                              <div style={{ fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '4px' }}>{docItem.name}</div>
-                              <div style={{ fontSize: '0.7rem', opacity: 0.5, marginBottom: '8px' }}>{new Date(docItem.uploadedAt).toLocaleDateString()}</div>
-                              <a href={docItem.url} target="_blank" rel="noreferrer" className="glass-button" style={{ width: '100%', padding: '6px', fontSize: '0.75rem' }}>
-                                <Download size={14}/> View/Download
-                              </a>
-                            </div>
-                          )) : (
-                            <div style={{ gridColumn: '1/-1', textAlign: 'center', opacity: 0.5, padding: '12px', fontSize: '0.85rem' }}>No documents uploaded by member.</div>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {activeTab === 'pending' && (
-          <motion.div key="pending" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel" style={{ padding: "32px" }}>
-            <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '16px' }}>
-              <div>
-                <h2 style={{ margin: 0 }}>Pending Approvals</h2>
-                <p style={{ opacity: 0.6, fontSize: '0.9rem', marginTop: '4px' }}>Review and verify new member registrations.</p>
-              </div>
-              <div style={{ padding: '6px 14px', borderRadius: '10px', background: 'rgba(212, 163, 115, 0.1)', color: '#d4a373', fontSize: '0.85rem' }}>{pendingUsers.length} Pending</div>
-            </div>
-
-            {msg.text && (
-              <div style={{ 
-                padding: "12px", 
-                borderRadius: "10px", 
-                marginBottom: '20px',
-                background: msg.type === "success" ? "rgba(128,255,128,0.1)" : "rgba(255,128,128,0.1)", 
-                color: msg.type === "success" ? "#80ff80" : "#ff8080", 
-                border: `1px solid ${msg.type === "success" ? "rgba(128,255,128,0.1)" : "rgba(255,128,128,0.1)"}`,
-                fontSize: '0.9rem' 
-              }}>
-                {msg.text}
-              </div>
+        <main className="admin-content">
+          <AnimatePresence mode="wait">
+            {activeTab === 'overview' && (
+              <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                <AdminOverview users={usersList} logs={logsList} />
+              </motion.div>
             )}
-            
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {pendingUsers.length === 0 ? (
-                <div style={{ textAlign: 'center', opacity: 0.5, padding: '60px' }}>
-                  <ShieldCheck size={48} style={{ marginBottom: '16px', opacity: 0.2 }} />
-                  <p>All clear! No pending applications.</p>
-                </div>
-              ) : pendingUsers.map(user => (
-                <div key={user.uid} className="glass-card mobile-stack" style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: '16px' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <strong style={{ fontSize: "1.1rem" }}>{user.name}</strong>
-                      <span style={{ fontSize: '0.7rem', padding: '2px 8px', background: 'rgba(212, 163, 115, 0.15)', color: '#d4a373', borderRadius: '20px', fontWeight: 'bold', textTransform: 'uppercase' }}>{user.role}</span>
-                    </div>
-                    <div style={{ fontSize: "0.85rem", opacity: 0.6, marginTop: "4px" }}>{user.email}</div>
-                    {user.createdAt && (
-                      <div style={{ fontSize: '0.75rem', opacity: 0.4, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Calendar size={12} /> Registered: {user.createdAt?.toDate ? user.createdAt.toDate().toLocaleDateString() : 'New'}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", gap: "12px", width: 'auto' }} className="mobile-stack">
-                    <button 
-                      onClick={() => handleRejectUser(user.uid, user.name)} 
-                      className="glass-button mobile-full" 
-                      style={{ padding: "10px 20px", fontSize: '0.9rem', color: '#ff8080', borderColor: 'rgba(255,128,128,0.2)' }}
-                    >
-                      <X size={16}/> Reject
-                    </button>
-                    <button 
-                      onClick={() => handleApproveUser(user.uid)} 
-                      className="glass-button primary mobile-full" 
-                      style={{ padding: "10px 20px", fontSize: '0.9rem' }}
-                    >
-                      <UserCheck size={16}/> Approve Member
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
 
-        {activeTab === 'logs' && (
-          <motion.div key="logs" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel" style={{ padding: "32px" }}>
-            <h2>Global Log Stream</h2>
-            <p style={{ opacity: 0.6, marginBottom: "24px", fontSize: "0.95rem" }}>Live monitor of all team activities.</p>
-            
-            <div style={{ overflowX: "auto", borderRadius: '12px' }} className="custom-scrollbar">
-              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", minWidth: '700px' }}>
-                <thead>
-                  <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                    <th style={{ padding: "16px" }}>Date</th>
-                    <th style={{ padding: "16px" }}>Member</th>
-                    <th style={{ padding: "16px" }}>Effort</th>
-                    <th style={{ padding: "16px" }}>Latest Activity</th>
-                    <th style={{ padding: "16px", textAlign: "right" }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logsList.length === 0 && <tr><td colSpan="5" style={{ padding: "32px", textAlign: "center", opacity: 0.5 }}>Syncing logs...</td></tr>}
-                  {logsList.map(log => (
-                    <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }} className="hover-row">
-                      <td style={{ padding: "16px", fontSize: '0.9rem' }}>{log.date}</td>
-                      <td style={{ padding: "16px", fontWeight: "600", fontSize: '0.9rem' }}>{log.userName}</td>
-                      <td style={{ padding: "16px", color: "var(--wood-accent)", fontWeight: 'bold' }}>{log.totalHours}h</td>
-                      <td style={{ padding: "16px", fontSize: '0.85rem', opacity: 0.7 }}>{log.activities.substring(0, 40)}{log.activities.length > 40 ? "..." : ""}</td>
-                      <td style={{ padding: "16px", textAlign: "right" }}>
-                        <button onClick={() => handleDeleteLog(log.id)} className="glass-button" style={{ padding: "8px", background: "rgba(255,100,100,0.1)", borderColor: "rgba(255,100,100,0.2)" }}>
-                          <Trash2 size={14} color="#ff8080" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </motion.div>
-        )}
+            {activeTab === 'users' && (
+              <motion.div key="users" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                <MemberHub 
+                  users={usersList}
+                  logs={logsList}
+                  onPhotoUpload={handleAdminPhotoUpload}
+                  onSetAward={handleSetAward}
+                  onClearAward={handleClearAward}
+                  onUploadReport={handleUploadReport}
+                  onUploadCertificate={handleUploadCertificate}
+                  expandedUserDocs={expandedUserDocs}
+                  setExpandedUserDocs={setExpandedUserDocs}
+                  uploadingPhoto={uploadingPhoto}
+                  uploadingReport={uploadingReport}
+                  uploadingCert={uploadingCert}
+                  months={months}
+                  years={years}
+                />
+              </motion.div>
+            )}
 
-        {activeTab === 'inquiries' && (
-          <motion.div key="inquiries" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel" style={{ padding: "32px" }}>
-            <h2>Citizen Inquiries</h2>
-            <p style={{ opacity: 0.6, marginBottom: "24px", fontSize: '0.95rem' }}>Public messages submitted via the website.</p>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {contactsList.length === 0 ? (
-                <div style={{ padding: '80px', textAlign: 'center', opacity: 0.5 }}>
-                  <MessageSquare size={48} style={{ marginBottom: '16px', opacity: 0.3 }} />
-                  <p>Inbox is empty.</p>
-                </div>
-              ) : (
-                contactsList.map(item => (
-                  <div key={item.id} className="glass-card" style={{ padding: '24px' }}>
-                    <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', gap: '16px' }}>
-                      <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                        <div style={{ padding: '12px', background: 'rgba(212, 163, 115, 0.1)', borderRadius: '12px' }}>
-                          <Mail size={24} color="#d4a373" />
-                        </div>
-                        <div>
-                          <h4 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            {item.subject} 
-                            {item.isLoggedIn && (
-                              <span style={{ fontSize: '0.65rem', padding: '2px 8px', background: 'rgba(128,255,128,0.1)', color: '#80ff80', borderRadius: '10px', border: '1px solid rgba(128,255,128,0.2)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                <ShieldCheck size={10} /> Verified
-                              </span>
-                            )}
-                          </h4>
-                          <p style={{ margin: '4px 0 0', fontSize: '0.85rem', opacity: 0.6 }}>
-                            <strong>{item.name}</strong> • {item.email}
-                          </p>
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'left', minWidth: '100px' }}>
-                        <div style={{ fontSize: '0.75rem', opacity: 0.4, marginBottom: '8px' }}>
-                          {item.timestamp?.toDate ? item.timestamp.toDate().toLocaleDateString() : 'Recent'}
-                        </div>
-                        <button onClick={() => handleDeleteContact(item.id)} className="glass-button" style={{ padding: '6px 10px', background: 'rgba(255,100,100,0.05)', borderColor: 'rgba(255,100,100,0.1)' }}>
-                          <Trash2 size={14} color="#ff8080" />
-                        </button>
-                      </div>
-                    </div>
-                    <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)', fontSize: '0.9rem', lineHeight: '1.6', opacity: 0.9 }}>
-                      {item.message}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </motion.div>
-        )}
+            {activeTab === 'pending' && (
+              <motion.div key="pending" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                <ApprovalsHub 
+                  users={usersList} 
+                  onApprove={handleApproveUser} 
+                  onReject={handleRejectUser} 
+                  msg={msg} 
+                />
+              </motion.div>
+            )}
 
-        {activeTab === 'viewer' && (
-          <motion.div key="viewer" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel" style={{ padding: "32px" }}>
-            <h2><ShieldPlus style={{ verticalAlign: 'middle', marginRight: '8px' }} /> Restricted Viewer Setup</h2>
-            <p style={{ opacity: 0.6, marginBottom: "32px", fontSize: '0.95rem' }}>Create specific accounts for stakeholders to monitor team logs.</p>
+            {activeTab === 'logs' && (
+              <motion.div key="logs" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                <ActivityHub logs={logsList} onDeleteLog={handleDeleteLog} />
+              </motion.div>
+            )}
 
-            <div className="responsive-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", alignItems: "start" }}>
-              <form onSubmit={handleCreateViewer} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                {msg.text && <div style={{ padding: "12px", borderRadius: "10px", background: msg.type === "success" ? "rgba(128,255,128,0.1)" : "rgba(255,128,128,0.1)", color: msg.type === "success" ? "#80ff80" : "#ff8080", border: `1px solid ${msg.type === "success" ? "rgba(128,255,128,0.2)" : "rgba(255,128,128,0.2)"}`, fontSize: '0.9rem' }}>{msg.text}</div>}
-                
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.8rem', opacity: 0.5, fontWeight: '600' }}>VIEWER NAME</label>
-                  <input type="text" className="glass-input" required value={viewerName} onChange={e => setViewerName(e.target.value)} placeholder="Full Name" />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.8rem', opacity: 0.5, fontWeight: '600' }}>EMAIL ADDRESS</label>
-                  <input type="email" className="glass-input" required value={viewerEmail} onChange={e => setViewerEmail(e.target.value)} placeholder="viewer@example.com" />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.8rem', opacity: 0.5, fontWeight: '600' }}>PASSWORD</label>
-                  <input type="password" className="glass-input" required value={viewerPassword} onChange={e => setViewerPassword(e.target.value)} placeholder="••••••••" minLength="6" />
-                </div>
-                
-                <button type="submit" disabled={creatingViewer} className="glass-button primary" style={{ height: "54px", marginTop: "10px" }}>
-                  {creatingViewer ? "Generating Account..." : "Create Viewer Access"}
-                </button>
-              </form>
+            {(activeTab === 'inquiries' || activeTab === 'viewer') && (
+              <motion.div key="stakeholder" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                <StakeholderHub 
+                  users={usersList}
+                  contacts={contactsList}
+                  onDeleteContact={handleDeleteContact}
+                  onDeleteUser={handleDeleteUser}
+                  createViewerAccount={createViewerAccount}
+                  isDemo={isDemo}
+                  setUsersList={setUsersList}
+                  msg={msg}
+                  setMsg={setMsg}
+                />
+              </motion.div>
+            )}
 
-              <div className="glass-card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px", minHeight: "450px" }}>
-                <div className="mobile-stack" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: '12px' }}>
-                  <h4 style={{ margin: 0 }}>Assign Team {assignedIds.length > 0 && <span style={{ color: 'var(--wood-accent)' }}>({assignedIds.length})</span>}</h4>
-                  <div style={{ display: "flex", gap: "12px" }}>
-                    <button type="button" onClick={handleSelectAll} style={{ fontSize: "0.75rem", background: "none", border: "none", color: "var(--wood-accent)", cursor: "pointer", fontWeight: '600' }}>ALL</button>
-                    <button type="button" onClick={handleClearAll} style={{ fontSize: "0.75rem", background: "none", border: "none", color: "rgba(255,100,100,0.6)", cursor: "pointer", fontWeight: '600' }}>CLEAR</button>
-                  </div>
-                </div>
-
-                <div style={{ position: "relative" }}>
-                  <Search size={16} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", opacity: 0.4 }} />
-                  <input 
-                    type="text" 
-                    className="glass-input" 
-                    placeholder="Search by name..." 
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    style={{ paddingLeft: "44px", fontSize: "0.9rem", height: "46px" }}
-                  />
-                  {searchTerm && <X size={16} onClick={() => setSearchTerm("")} style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", cursor: "pointer", opacity: 0.4 }} />}
-                </div>
-
-                <div className="custom-scrollbar" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px", paddingRight: "6px" }}>
-                  {filteredInterns.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "60px 0", opacity: 0.4, fontStyle: "italic", fontSize: "0.9rem" }}>No matches.</div>
-                  ) : (
-                    filteredInterns.map(user => (
-                      <div 
-                        key={user.uid} 
-                        onClick={() => toggleAssignedId(user.id || user.uid)}
-                        style={{ 
-                          padding: "14px", 
-                          borderRadius: "14px", 
-                          background: assignedIds.includes(user.id || user.uid) ? "rgba(212, 163, 115, 0.12)" : "rgba(255,255,255,0.02)",
-                          border: `1px solid ${assignedIds.includes(user.id || user.uid) ? "rgba(212, 163, 115, 0.3)" : "rgba(255,255,255,0.05)"}`,
-                          cursor: "pointer",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          transition: "all 0.2s"
-                        }}
-                        className="hover-card"
-                      >
-                        <div>
-                          <div style={{ fontWeight: assignedIds.includes(user.id || user.uid) ? "600" : "400", fontSize: "0.9rem" }}>{user.name}</div>
-                          <div style={{ fontSize: "0.75rem", opacity: 0.4 }}>{user.email}</div>
-                        </div>
-                        {assignedIds.includes(user.id || user.uid) ? (
-                          <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: "var(--wood-accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <Check size={12} color="#000" strokeWidth={4} />
-                          </div>
-                        ) : (
-                          <div style={{ width: "20px", height: "20px", borderRadius: "50%", border: "2px solid rgba(255,255,255,0.1)" }} />
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ marginTop: "40px", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "32px" }}>
-              <h3 style={{ marginBottom: '24px' }}>Manage Existing Stakeholders</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>
-                {usersList.filter(u => u.role === 'viewer').map(viewer => (
-                  <div key={viewer.uid} className="glass-card" style={{ padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: '16px' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: "600", fontSize: '0.95rem' }}>{viewer.name}</div>
-                      <div style={{ fontSize: "0.8rem", opacity: 0.4, marginBottom: '12px' }}>{viewer.email}</div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--wood-accent)", opacity: 0.8, lineHeight: '1.4' }}>
-                        <strong>Access:</strong> {viewer.assignedUserIds?.length || 0} Members
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => handleDeleteUser(viewer.uid, viewer.name)}
-                      className="glass-button" 
-                      style={{ padding: "8px", background: "rgba(255,100,100,0.05)", borderColor: "rgba(255,100,100,0.1)" }}
-                    >
-                      <Trash2 size={14} color="#ff8080" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+          </AnimatePresence>
+        </main>
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -71,7 +72,7 @@ function AppContent() {
             <Route path="/members" element={<PageWrapper><Members /></PageWrapper>} />
             <Route path="/contact" element={<PageWrapper><Contact /></PageWrapper>} />
             <Route path="/dashboard" element={<PrivateRoute><PageWrapper><Dashboard /></PageWrapper></PrivateRoute>} />
-            <Route path="/profile/:id" element={<PrivateRoute><PageWrapper><Profile /></PageWrapper></PrivateRoute>} />
+            <Route path="/profile/:id" element={<PageWrapper><Profile /></PageWrapper>} />
             <Route path="/admin" element={<PrivateRoute reqRole="admin"><PageWrapper><AdminPanel /></PageWrapper></PrivateRoute>} />
           </Routes>
         </AnimatePresence>
@@ -83,9 +84,11 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

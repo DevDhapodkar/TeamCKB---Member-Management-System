@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { useAuth } from "../contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, Award, Star, Calendar, ArrowRight, UserCircle } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -9,18 +10,13 @@ export default function Members() {
   const [activeTab, setActiveTab] = useState("interns");
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { currentUser } = useAuth();
   const isDemo = auth.app.options.apiKey.includes("Dummy");
 
   useEffect(() => {
     if (isDemo) {
       const demoUsers = JSON.parse(localStorage.getItem("mockUsers")) || [];
-      // Add fake awards for demo
-      const augmented = demoUsers.map(u => ({
-        ...u,
-        awardMonth: u.name.includes("Aman") ? "July" : null,
-        awardYear: u.name.includes("Dev") ? "2025" : null
-      }));
-      setMembers(augmented);
+      setMembers(demoUsers);
       setLoading(false);
       return;
     }
@@ -149,12 +145,17 @@ export default function Members() {
                       alignItems: 'center', 
                       justifyContent: 'center',
                       margin: '0 auto 16px',
-                      border: '2px solid rgba(212, 163, 115, 0.2)'
+                      border: '2px solid rgba(212, 163, 115, 0.2)',
+                      overflow: 'hidden'
                     }}>
-                      <UserCircle size={40} color="#d4a373" />
+                      {member.photoURL ? (
+                        <img src={member.photoURL} alt={member.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <UserCircle size={40} color="#d4a373" />
+                      )}
                     </div>
                     <h4 style={{ fontSize: '1.2rem', marginBottom: '4px' }}>{member.name}</h4>
-                    <p style={{ opacity: 0.6, fontSize: '0.85rem', marginBottom: '16px' }}>{member.email}</p>
+                    {currentUser && <p style={{ opacity: 0.6, fontSize: '0.85rem', marginBottom: '16px' }}>{member.email}</p>}
                     <div style={{ 
                       display: 'inline-flex', 
                       alignItems: 'center', 
@@ -195,8 +196,12 @@ function AwardCard({ title, user, period, type }) {
         
         {user ? (
           <div className="mobile-stack" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <div style={{ width: '80px', height: '80px', borderRadius: '20px', background: 'rgba(212, 163, 115, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(212, 163, 115, 0.3)', flexShrink: 0 }}>
-              <UserCircle size={50} color="#d4a373" />
+            <div style={{ width: '80px', height: '80px', borderRadius: '20px', background: 'rgba(212, 163, 115, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(212, 163, 115, 0.3)', flexShrink: 0, overflow: 'hidden' }}>
+              {user.photoURL ? (
+                <img src={user.photoURL} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <UserCircle size={50} color="#d4a373" />
+              )}
             </div>
             <div>
               <h3 style={{ fontSize: '1.8rem', marginBottom: '4px' }}>{user.name}</h3>
