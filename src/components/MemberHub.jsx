@@ -11,6 +11,7 @@ export default function MemberHub({
   onClearAward, 
   onUploadReport, 
   onUploadCertificate,
+  onToggleDocVerified,
   expandedUserDocs,
   setExpandedUserDocs,
   uploadingPhoto,
@@ -23,15 +24,21 @@ export default function MemberHub({
   
   const interns = users.filter(u => u.role !== 'admin' && u.role !== 'company' && u.approved !== false);
   const filteredInterns = interns.filter(u => 
-    u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (u.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (u.email || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getUserTotalHours = (uid) => {
-    return logs
-      .filter(log => log.userId === uid)
-      .reduce((acc, log) => acc + parseFloat(log.totalHours || 0), 0)
-      .toFixed(1);
+    if (!Array.isArray(logs)) return "0.0";
+    try {
+      return logs
+        .filter(log => log?.userId === uid)
+        .reduce((acc, log) => acc + parseFloat(log?.totalHours || 0), 0)
+        .toFixed(1);
+    } catch (e) {
+      console.error("Error calculating hours", e);
+      return "0.0";
+    }
   };
 
   return (
@@ -79,7 +86,7 @@ export default function MemberHub({
                   </label>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <strong style={{ fontSize: "1.1rem" }}>{user.name}</strong>
+                      <strong style={{ fontSize: "1.1rem" }}>{user.name || 'Unknown Member'}</strong>
                       <span style={{ fontSize: '0.7rem', padding: '2px 8px', background: 'rgba(212, 163, 115, 0.1)', color: '#d4a373', borderRadius: '20px', fontWeight: 'bold' }}>{user.role}</span>
                       <span style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', background: 'rgba(128, 255, 128, 0.05)', color: '#80ff80', borderRadius: '20px', border: '1px solid rgba(128,255,128,0.1)' }}>
                         <Clock size={12} /> {getUserTotalHours(user.uid)}h Total
@@ -124,6 +131,13 @@ export default function MemberHub({
                   </div>
 
                   <div style={{ display: "flex", gap: "8px", width: '100%', justifyContent: 'flex-end' }}>
+                    <button 
+                      onClick={() => onToggleDocVerified(user.uid, user.docVerified)} 
+                      className={`glass-button ${user.docVerified ? 'primary' : ''}`} 
+                      style={{ padding: "6px 12px", fontSize: '0.8rem' }}
+                    >
+                      <ShieldCheck size={14}/> {user.docVerified ? "Docs Verified" : "Verify Docs"}
+                    </button>
                     <button 
                       onClick={() => setExpandedUserDocs(expandedUserDocs === user.uid ? null : user.uid)} 
                       className={`glass-button ${expandedUserDocs === user.uid ? 'primary' : ''}`} 
@@ -205,7 +219,7 @@ export default function MemberHub({
                             </div>
                             <div>
                               <span style={{ fontSize: '0.65rem', opacity: 0.5, textTransform: 'uppercase', display: 'block' }}>Timing</span>
-                              <span style={{ fontSize: '0.85rem' }}>{user.timing?.substring(0, 30)}...</span>
+                              <span style={{ fontSize: '0.85rem' }}>{typeof user.timing === 'string' ? user.timing.substring(0, 30) : (user.timing || 'N/A')}...</span>
                             </div>
                           </>
                         )}

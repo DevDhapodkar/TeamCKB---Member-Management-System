@@ -43,13 +43,13 @@ export function AuthProvider({ children }) {
           } else {
             console.warn("AuthContext: No user document found for UID:", user.uid);
           }
-        } catch (error) {
-          console.error("Error fetching user data:", error);
+        } finally {
+          setLoading(false);
         }
       } else {
         setUserData(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
     return unsubscribe;
   }, []);
@@ -144,6 +144,29 @@ export function AuthProvider({ children }) {
     return cred;
   }
 
+  async function approveRegistration(email, password, userData, registrationId) {
+    if (auth.app.options.apiKey.includes("Dummy")) {
+      // Mock flow
+      return;
+    }
+
+    // Use secondaryAuth to avoid logging out the admin
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    const user = cred.user;
+    
+    const newUserData = {
+      uid: user.uid,
+      approved: true,
+      docVerified: false,
+      createdAt: serverTimestamp(),
+      ...userData
+    };
+    
+    await setDoc(doc(db, "users", user.uid), newUserData);
+    await secondaryAuth.signOut();
+    return cred;
+  }
+
   function logout() {
     if (auth.app.options.apiKey.includes("Dummy")) {
       setCurrentUser(null);
@@ -162,7 +185,8 @@ export function AuthProvider({ children }) {
     login,
     signup,
     logout,
-    createViewerAccount
+    createViewerAccount,
+    approveRegistration
   };
 
   return (

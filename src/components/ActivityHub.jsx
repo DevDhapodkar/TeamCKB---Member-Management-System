@@ -1,5 +1,6 @@
 import { History, Trash2, Search, X } from "lucide-react";
 import { useState } from "react";
+import { formatHours } from "../utils";
 
 export default function ActivityHub({ logs, onDeleteLog }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -65,12 +66,12 @@ export default function ActivityHub({ logs, onDeleteLog }) {
                     fontWeight: 'bold',
                     fontSize: '0.85rem'
                   }}>
-                    {log.totalHours}h
+                    {formatHours(log.totalHours)}
                   </div>
                 </td>
                 <td style={{ padding: "20px", maxWidth: '300px' }}>
                   <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: '1.5' }}>
-                    {log.activities.substring(0, 80)}{log.activities.length > 80 ? "..." : ""}
+                    {(log.activities || '').substring(0, 80)}{(log.activities || '').length > 80 ? "..." : ""}
                   </div>
                 </td>
                 <td style={{ padding: "20px", textAlign: "right" }}>

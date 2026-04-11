@@ -22,8 +22,8 @@ export default function StakeholderHub({
 
   const interns = users.filter(u => u.role !== 'admin' && u.role !== 'company' && u.approved !== false);
   const filteredInterns = interns.filter(u => 
-    u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (u.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (u.email || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleCreateViewer = async (e) => {

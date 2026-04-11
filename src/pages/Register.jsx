@@ -11,16 +11,17 @@ import {
   CheckCircle2, 
   ArrowLeft 
 } from "lucide-react";
+import { db } from "../firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export default function Register() {
   const [activeTab, setActiveTab] = useState("intern");
   const [step, setStep] = useState(1);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [declaredTrue, setDeclaredTrue] = useState(false);
   
   // New Intern-specific fields
   const [formData, setFormData] = useState({
@@ -66,7 +67,6 @@ export default function Register() {
   const [companyName, setCompanyName] = useState("");
   const [interest, setInterest] = useState("");
   
-  const { signup, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleFormDataChange = (e) => {
@@ -100,11 +100,29 @@ export default function Register() {
       if (activeTab === 'donor') extraData.phone = formData.phone;
       if (activeTab === 'donor') extraData.interest = interest;
 
-      await signup(email, password, name, activeTab, extraData);
+      if (!declaredTrue) {
+        setError("You must declare that the information provided is true.");
+        setLoading(false);
+        return;
+      }
+
+      // Generate pseudo-email based on the phone/whatsapp number to support auth flows
+      const phoneVal = extraData.whatsapp || extraData.phone || formData.phone || "user_" + Date.now();
+      const generatedEmail = `${phoneVal.toString().replace(/\D/g, '')}@teamckb.com`;
+
+      const registrationData = {
+        name,
+        email: generatedEmail, // Use the generated email
+        role: activeTab,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        ...extraData
+      };
+
+      await addDoc(collection(db, "pending_registrations"), registrationData);
       setShowSuccess(true);
-      await logout();
     } catch (err) {
-      setError("Failed to create an account. " + err.message);
+      setError("Failed to submit registration. " + err.message);
     } finally {
       setLoading(false);
     }
@@ -128,14 +146,6 @@ export default function Register() {
               <div style={{ gridColumn: 'span 2' }}>
                 <label className="form-label">Full Name *</label>
                 <input type="text" className="glass-input" required value={name} onChange={e => setName(e.target.value)} placeholder="Full Name per ID" />
-              </div>
-              <div className="mobile-full">
-                <label className="form-label">Email *</label>
-                <input type="email" className="glass-input" required value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" />
-              </div>
-              <div className="mobile-full">
-                <label className="form-label">Password *</label>
-                <input type="password" className="glass-input" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" minLength="6" />
               </div>
               <div className="mobile-full">
                 <label className="form-label">Age *</label>
@@ -348,6 +358,20 @@ export default function Register() {
                 <option value="Yes">Yes</option>
               </select>
             </div>
+            
+            <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <input 
+                type="checkbox" 
+                id="truthDeclaration" 
+                required
+                checked={declaredTrue}
+                onChange={e => setDeclaredTrue(e.target.checked)}
+                style={{ width: '20px', height: '20px', accentColor: '#d4a373' }}
+              />
+              <label htmlFor="truthDeclaration" style={{ fontSize: '0.9rem', opacity: 0.8, cursor: 'pointer' }}>
+                I declare that the information provided by me is true. *
+              </label>
+            </div>
           </div>
         );
       default: return null;
@@ -430,14 +454,6 @@ export default function Register() {
                             <label className="form-label">Full Name *</label>
                             <input type="text" className="glass-input" required value={name} onChange={e => setName(e.target.value)} placeholder="Full Name" />
                           </div>
-                          <div className="mobile-full">
-                            <label className="form-label">Email *</label>
-                            <input type="email" className="glass-input" required value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" />
-                          </div>
-                          <div className="mobile-full">
-                            <label className="form-label">Password *</label>
-                            <input type="password" className="glass-input" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" minLength="6" />
-                          </div>
                         </div>
 
                         {activeTab === 'sponsor' && (
@@ -471,6 +487,20 @@ export default function Register() {
                             <input type="text" className="glass-input" required value={interest} onChange={e => setInterest(e.target.value)} placeholder="e.g. Field Work, Teaching" />
                           </div>
                         )}
+
+                        <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <input 
+                            type="checkbox" 
+                            id="truthDeclarationOther" 
+                            required
+                            checked={declaredTrue}
+                            onChange={e => setDeclaredTrue(e.target.checked)}
+                            style={{ width: '20px', height: '20px', accentColor: '#d4a373' }}
+                          />
+                          <label htmlFor="truthDeclarationOther" style={{ fontSize: '0.9rem', opacity: 0.8, cursor: 'pointer' }}>
+                            I declare that the information provided by me is true. *
+                          </label>
+                        </div>
                       </div>
                     )}
                   </motion.div>

@@ -148,11 +148,11 @@ export default function AdminOverview({ users, logs }) {
               <div key={u.uid} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--wood-accent)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                    {u.name.charAt(0)}
+                    {u.name ? u.name.charAt(0) : '?'}
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: '600' }}>{u.name}</div>
-                    <div style={{ fontSize: '0.7rem', opacity: 0.5 }}>{u.role.toUpperCase()}</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: '600' }}>{u.name || 'Unknown'}</div>
+                    <div style={{ fontSize: '0.7rem', opacity: 0.5 }}>{(u.role || 'user').toUpperCase()}</div>
                   </div>
                 </div>
                 <div style={{ fontSize: '0.7rem', padding: '4px 10px', background: 'rgba(212,163,115,0.1)', color: '#d4a373', borderRadius: '20px' }}>PENDING</div>
@@ -174,8 +174,8 @@ export default function AdminOverview({ users, logs }) {
                   <Activity size={16} color="#80ff80" />
                 </div>
                 <div>
-                  <div style={{ fontWeight: '500' }}>{log.userName} checked in</div>
-                  <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{log.activities.substring(0, 50)}...</div>
+                  <div style={{ fontWeight: '500' }}>{log.userName || 'Unknown'} checked in</div>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{(log.activities || '').substring(0, 50)}...</div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--wood-accent)', marginTop: '4px' }}>{log.date} • {log.totalHours}h</div>
                 </div>
               </div>

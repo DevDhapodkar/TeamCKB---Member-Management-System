@@ -55,5 +55,18 @@ service cloud.firestore {
       allow create: if true;
       allow read, update, delete: if isAdmin();
     }
+
+    // Pending Registrations Collection
+    match /pending_registrations/{regId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Active Sessions Collection
+    match /active_sessions/{sessionId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
   }
 }

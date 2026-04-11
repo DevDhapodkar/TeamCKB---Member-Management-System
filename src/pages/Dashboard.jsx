@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { db, auth } from "../firebase";
-import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, doc, deleteDoc } from "firebase/firestore";
+import { formatHours } from "../utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   PlusCircle, 
@@ -25,99 +26,110 @@ import { Link, useNavigate } from "react-router-dom";
 // Sub-components for specific roles
 function MemberDashboard({ currentUser, userData, isDemo }) {
   const [logs, setLogs] = useState([]);
+  const [activeSession, setActiveSession] = useState(null);
+  const [elapsedTime, setElapsedTime] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split("T")[0],
-    arrivalTime: "",
-    timeout: "",
-    totalHours: "",
-    arrivalTime: "",
-    timeout: "",
-    durationTime: "",
     attendance: "Present",
     activities: "",
     interactedWith: "",
     discussions: "",
     thoughts: "",
     challenges: "",
-    remark: "",
-    challenges: "",
     remark: ""
   });
 
   useEffect(() => {
-    if (isDemo) {
-      const demoLogs = JSON.parse(localStorage.getItem("mockLogs")) || [];
-      setLogs(demoLogs.filter(log => log.userId === currentUser.uid).sort((a,b) => new Date(b.date) - new Date(a.date)));
-      return;
-    }
-    const q = query(
-      collection(db, "logs"),
-      where("userId", "==", currentUser.uid),
-      orderBy("createdAt", "desc")
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    if (isDemo || !currentUser?.uid) return;
+    const qLogs = query(collection(db, "logs"), where("userId", "==", currentUser.uid), orderBy("createdAt", "desc"));
+    const unsubLogs = onSnapshot(qLogs, (snapshot) => {
       setLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
-    return unsubscribe;
+
+    const qSession = query(collection(db, "active_sessions"), where("userId", "==", currentUser.uid));
+    const unsubSession = onSnapshot(qSession, (snapshot) => {
+      if (!snapshot.empty) {
+        setActiveSession({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
+      } else {
+        setActiveSession(null);
+      }
+    });
+    return () => { unsubLogs(); unsubSession(); };
   }, [currentUser, isDemo]);
+
+  useEffect(() => {
+    let interval;
+    if (activeSession && activeSession.checkInTime) {
+      interval = setInterval(() => {
+        const diffMs = new Date() - new Date(activeSession.checkInTime);
+        const hrs = Math.floor(diffMs / 3600000);
+        const mins = Math.floor((diffMs % 3600000) / 60000);
+        setElapsedTime(`${hrs}h ${mins}m`);
+      }, 60000);
+      
+      const diffMs = new Date() - new Date(activeSession.checkInTime);
+      const hrs = Math.floor(diffMs / 3600000);
+      const mins = Math.floor((diffMs % 3600000) / 60000);
+      setElapsedTime(`${hrs}h ${mins}m`);
+    }
+    return () => clearInterval(interval);
+  }, [activeSession]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    let updatedData = { ...formData, [name]: value };
-
-    // Auto-calculate duration if arrival and timeout are present
-    if (name === "arrivalTime" || name === "timeout") {
-      const arrival = name === "arrivalTime" ? value : formData.arrivalTime;
-      const timeout = name === "timeout" ? value : formData.timeout;
-      
-      if (arrival && timeout) {
-        const [h1, m1] = arrival.split(":").map(Number);
-        const [h2, m2] = timeout.split(":").map(Number);
-        const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
-        if (diff > 0) {
-          const hrs = (diff / 60).toFixed(2);
-          updatedData.totalHours = hrs;
-          updatedData.durationTime = `${Math.floor(diff / 60)}h ${diff % 60}m`;
-        }
-      }
-    }
-    setFormData(updatedData);
+    setFormData({ ...formData, [name]: value });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleCheckIn = async () => {
+    if (isDemo) return;
     try {
+      const newSession = {
+        userId: currentUser.uid,
+        userName: userData.name,
+        userRole: userData.role,
+        checkInTime: new Date().toISOString()
+      };
+      await addDoc(collection(db, "active_sessions"), newSession);
+    } catch (err) {
+      console.error("Error checking in", err);
+    }
+  };
+
+  const handleCheckOutSubmit = async (e) => {
+    e.preventDefault();
+    if (!activeSession) return;
+    
+    try {
+      const checkInDate = new Date(activeSession.checkInTime);
+      const now = new Date();
+      const diffHours = (now - checkInDate) / (1000 * 60 * 60);
+
       const newLog = {
         userId: currentUser.uid,
         userName: userData.name,
         userRole: userData.role,
         ...formData,
-        createdAt: isDemo ? new Date().toISOString() : serverTimestamp()
+        arrivalTime: checkInDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+        timeout: now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+        date: checkInDate.toISOString().split("T")[0],
+        totalHours: diffHours.toFixed(3),
+        createdAt: serverTimestamp()
       };
+      
       if (isDemo) {
-        const demoLogs = JSON.parse(localStorage.getItem("mockLogs")) || [];
-        demoLogs.unshift({ id: Date.now().toString(), ...newLog });
-        localStorage.setItem("mockLogs", JSON.stringify(demoLogs));
-        setLogs(demoLogs.filter(log => log.userId === currentUser.uid));
+        setLogs([newLog, ...logs]);
       } else {
         await addDoc(collection(db, "logs"), newLog);
+        await deleteDoc(doc(db, "active_sessions", activeSession.id));
       }
-      setSuccessMsg("Log successfully submitted!");
+      
+      setSuccessMsg("Check-out successful. Log saved!");
       setTimeout(() => setSuccessMsg(""), 3000);
       setFormData({ 
-        ...formData, 
-        activities: "", 
-        interactedWith: "", 
-        discussions: "", 
-        thoughts: "", 
-        challenges: "",
-        remark: "",
-        challenges: "",
-        remark: ""
+        attendance: "Present", activities: "", interactedWith: "", discussions: "", thoughts: "", challenges: "", remark: ""
       });
     } catch (error) {
-      console.error("Error adding log:", error);
+      console.error("Error checking out:", error);
     }
   };
 
@@ -138,82 +150,78 @@ function MemberDashboard({ currentUser, userData, isDemo }) {
           )}
         </div>
         
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: '24px' }}>
-          <div className="responsive-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-            <div className="mobile-full">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
-                <Calendar size={14} color="#d4a373" /> Date
-              </label>
-              <input type="date" name="date" className="glass-input" required value={formData.date} onChange={handleChange} />
-            </div>
-            <div className="mobile-full">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
-                <Clock size={14} color="#d4a373" /> Working Hours
-              </label>
-              <input type="number" name="totalHours" step="0.5" className="glass-input" required value={formData.totalHours} onChange={handleChange} placeholder="Hours spent" />
-            </div>
+        {(!userData.docVerified && !isDemo) ? (
+          <div style={{ background: 'rgba(255,100,100,0.1)', border: '1px solid rgba(255,100,100,0.2)', padding: '24px', borderRadius: '16px', textAlign: 'center' }}>
+            <ShieldCheck size={40} color="#ff8080" style={{ marginBottom: '16px' }} />
+            <h3 style={{ margin: '0 0 10px 0', color: '#ff8080' }}>Document Verification Pending</h3>
+            <p style={{ margin: 0, opacity: 0.8, fontSize: '0.95rem' }}>You cannot access the logging system until an administrator verifies your submitted documents.</p>
           </div>
-          <div className="responsive-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-            <div className="mobile-full">
-              <label style={{ display: 'block', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>Arrival Time</label>
-              <input type="time" name="arrivalTime" className="glass-input" required value={formData.arrivalTime} onChange={handleChange} />
+        ) : (
+          !activeSession ? (
+            <div style={{ textAlign: "center", padding: "40px 20px" }}>
+              <div style={{ display: 'inline-flex', padding: '16px', borderRadius: '50%', background: 'rgba(212, 163, 115, 0.1)', marginBottom: '24px' }}>
+                <Clock size={40} color="#d4a373" />
+              </div>
+              <h3 style={{ fontSize: '1.8rem', marginBottom: '16px' }}>Ready to start your day?</h3>
+              <p style={{ opacity: 0.7, marginBottom: '32px' }}>Click below to check in. Your hours will be tracked automatically.</p>
+              <button onClick={handleCheckIn} className="glass-button primary" style={{ padding: '16px 48px', fontSize: '1.1rem' }}>
+                <Zap size={20} style={{ marginRight: '10px' }} /> Check In Now
+              </button>
             </div>
-            <div className="mobile-full">
-              <label style={{ display: 'block', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>Closing Time</label>
-              <input type="time" name="timeout" className="glass-input" required value={formData.timeout} onChange={handleChange} />
-            </div>
-          </div>
-          <div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
-              <Zap size={14} color="#d4a373" /> What did you work on today?
-            </label>
-            <textarea name="activities" className="glass-input" required value={formData.activities} onChange={handleChange} rows="3" placeholder="I completed..." />
-          </div>
-          <div className="responsive-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-            <div className="mobile-full">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
-                <Users size={14} color="#d4a373" /> Interactions
-              </label>
-              <input type="text" name="interactedWith" className="glass-input" required value={formData.interactedWith} onChange={handleChange} placeholder="Met with..." />
-            </div>
-            <div className="mobile-full">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
-                <ShieldCheck size={14} color="#d4a373" /> Attendance Status
-              </label>
-              <select name="attendance" className="glass-input" value={formData.attendance} onChange={handleChange}>
-                <option value="Present">Present</option>
-                <option value="On Leave">On Leave</option>
-                <option value="Half Day">Half Day</option>
-                <option value="Late">Late Arrival</option>
-              </select>
-            </div>
-          </div>
-          
-          <div className="responsive-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-            <div className="mobile-full">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
-                <MessageSquare size={14} color="#d4a373" /> Key Discussions
-              </label>
-              <input type="text" name="discussions" className="glass-input" required value={formData.discussions} onChange={handleChange} placeholder="Decided to..." />
-            </div>
-            <div className="mobile-full" title="Calculated automatically">
-              <label style={{ display: 'block', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>Duration Summary</label>
-              <input type="text" className="glass-input" value={formData.durationTime} readOnly placeholder="e.g. 4h 30m" style={{ background: 'rgba(255,255,255,0.03)', opacity: 0.7 }} />
-            </div>
-          </div>
-
-
-          <div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
-              <Target size={14} color="#d4a373" /> Challenges & Remarks
-            </label>
-            <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-              <textarea name="challenges" className="glass-input" value={formData.challenges} onChange={handleChange} rows="2" placeholder="Blockers? (Optional)" />
-              <textarea name="remark" className="glass-input" value={formData.remark} onChange={handleChange} rows="2" placeholder="Internal remarks..." />
-            </div>
-          </div>
-          <button type="submit" className="glass-button primary" style={{ marginTop: '10px', height: '56px' }}>Submit Log Entry</button>
-        </form>
+          ) : (
+            <form onSubmit={handleCheckOutSubmit} style={{ display: "flex", flexDirection: "column", gap: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                <div style={{ background: 'rgba(212, 163, 115, 0.05)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(212, 163, 115, 0.1)' }}>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.5, textTransform: 'uppercase', marginBottom: '8px' }}>Check-In Time</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{new Date(activeSession.checkInTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                </div>
+                <div style={{ background: 'rgba(212, 163, 115, 0.05)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(212, 163, 115, 0.1)' }}>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.5, textTransform: 'uppercase', marginBottom: '8px' }}>Current Time</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                </div>
+                <div style={{ background: 'rgba(212, 163, 115, 0.1)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(212, 163, 115, 0.3)' }}>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.5, textTransform: 'uppercase', marginBottom: '8px', color: '#80ff80' }}>Total Duration</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '1.1rem', color: '#80ff80' }}>{elapsedTime}</div>
+                </div>
+              </div>
+              
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
+                  <Zap size={14} color="#d4a373" /> What did you work on today?
+                </label>
+                <textarea name="activities" className="glass-input" required value={formData.activities} onChange={handleChange} rows="3" placeholder="Briefly describe your tasks..." />
+              </div>
+              <div className="responsive-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+                <div className="mobile-full">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
+                    <Users size={14} color="#d4a373" /> Interactions
+                  </label>
+                  <input type="text" name="interactedWith" className="glass-input" required value={formData.interactedWith} onChange={handleChange} placeholder="Who did you collaborate with?" />
+                </div>
+                <div className="mobile-full">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
+                    <ShieldCheck size={14} color="#d4a373" /> Attendance Status
+                  </label>
+                  <select name="attendance" className="glass-input" value={formData.attendance} onChange={handleChange}>
+                    <option value="Present">Present</option>
+                    <option value="On Leave">On Leave</option>
+                    <option value="Half Day">Half Day</option>
+                    <option value="Late">Late Arrival</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="mobile-full">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '0.9rem', opacity: 0.8 }}>
+                  <MessageSquare size={14} color="#d4a373" /> Key Discussions
+                </label>
+                <input type="text" name="discussions" className="glass-input" required value={formData.discussions} onChange={handleChange} placeholder="Summary of outcomes..." />
+              </div>
+              
+              <button type="submit" className="glass-button primary" style={{ marginTop: '10px', height: '56px' }}>Check Out & Save Log</button>
+            </form>
+          )
+        )}
       </motion.div>
 
       <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
@@ -231,7 +239,7 @@ function MemberDashboard({ currentUser, userData, isDemo }) {
                     </div>
                     <span style={{ fontWeight: '600', fontSize: '1rem' }}>{log.date}</span>
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#d4a373', fontWeight: 'bold' }}>{log.totalHours}h</div>
+                  <div style={{ fontSize: '0.85rem', color: '#d4a373', fontWeight: 'bold' }}>{formatHours(log.totalHours)}</div>
                 </div>
                 <p style={{ fontSize: '0.85rem', margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', color: 'rgba(245, 235, 224, 0.7)', lineHeight: '1.5' }}>{log.activities}</p>
               </motion.div>
@@ -420,9 +428,24 @@ export default function Dashboard() {
       return;
     }
     if (userData.role === 'viewer') {
-      const allowedIds = userData.assignedUserIds || ["none"];
-      const q = query(collection(db, "logs"), where("userId", "in", allowedIds), orderBy("createdAt", "desc"));
-      return onSnapshot(q, (s) => setLogs(s.docs.map(d => ({id: d.id, ...d.data()}))));
+      const allowedIds = (userData.assignedUserIds && userData.assignedUserIds.length > 0) 
+        ? userData.assignedUserIds.slice(0, 30) 
+        : ["none"];
+      
+      const q = query(
+        collection(db, "logs"), 
+        where("userId", "in", allowedIds), 
+        orderBy("createdAt", "desc")
+      );
+      
+      try {
+        return onSnapshot(q, 
+          (s) => setLogs(s.docs.map(d => ({id: d.id, ...d.data()}))),
+          (err) => console.error("Dashboard query failed", err)
+        );
+      } catch (err) {
+        console.error("Failed to setup listener", err);
+      }
     }
   }, [userData, isDemo]);
 
@@ -464,7 +487,9 @@ export default function Dashboard() {
     <div className="container" style={{ padding: '20px 0' }}>
       <header className="mobile-stack" style={{ marginBottom: '40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '24px' }}>
         <div>
-          <h1 style={{ fontSize: '2.5rem', marginBottom: '8px' }}>Hello, {userData?.name?.split(' ')[0] || 'Partner'}</h1>
+          <h1 style={{ fontSize: '2.5rem', marginBottom: '8px' }}>
+            Hello, {userData?.name ? userData.name.split(' ')[0] : (userData?.role === 'viewer' ? 'Partner' : 'Member')}
+          </h1>
           <p style={{ opacity: 0.6, fontSize: '1.1rem' }}>Your {userData?.role} control center.</p>
         </div>
         <div className="glass-panel" style={{ padding: '10px 24px', display: 'flex', alignItems: 'center', gap: '12px', borderRadius: '14px' }}>

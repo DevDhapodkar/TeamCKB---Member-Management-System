@@ -17,6 +17,7 @@ import StakeholderHub from "../components/StakeholderHub";
 export default function AdminPanel() {
   const { userData } = useAuth();
   const [usersList, setUsersList] = useState([]);
+  const [pendingList, setPendingList] = useState([]);
   const [logsList, setLogsList] = useState([]);
   const [contactsList, setContactsList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +35,7 @@ export default function AdminPanel() {
   const years = Array.from({length: 5}, (_, i) => (new Date().getFullYear() + i).toString());
   
   // New Viewer Account States
-  const { createViewerAccount } = useAuth();
+  const { createViewerAccount, approveRegistration } = useAuth();
   const [viewerName, setViewerName] = useState("");
   const [viewerEmail, setViewerEmail] = useState("");
   const [viewerPassword, setViewerPassword] = useState("");
@@ -55,8 +56,22 @@ export default function AdminPanel() {
 
     const uQuery = query(collection(db, "users"), orderBy("createdAt", "desc"));
     const unsubscribeUsers = onSnapshot(uQuery, (snap) => {
-      setUsersList(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setUsersList(snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          uid: d.id,
+          name: data.name || "Unknown Member",
+          role: data.role || "member"
+        };
+      }));
       setLoading(false);
+    });
+
+    const pQuery = query(collection(db, "pending_registrations"), orderBy("createdAt", "desc"));
+    const unsubscribePending = onSnapshot(pQuery, (snap) => {
+      setPendingList(snap.docs.map(d => ({ id: d.id, ...d.data(), uid: d.id })));
     });
 
     const lQuery = query(collection(db, "logs"), orderBy("createdAt", "desc"));
@@ -73,6 +88,7 @@ export default function AdminPanel() {
       unsubscribeUsers();
       unsubscribeLogs();
       unsubscribeContacts();
+      unsubscribePending();
     };
   }, [isDemo]);
 
@@ -114,31 +130,43 @@ export default function AdminPanel() {
     }
   };
 
-  const handleApproveUser = async (userId) => {
+  const handleApproveRegistration = async (regId) => {
+    const reg = pendingList.find(r => r.id === regId);
+    if (!reg) return;
+
+    if (!window.confirm(`Approve ${reg.name} and generate credentials?`)) return;
+
+    const randomPass = Math.random().toString(36).substring(2, 10);
+    const { id, uid, status, ...userData } = reg;
+
     try {
-      if (isDemo) {
-        const updated = usersList.map(u => u.uid === userId ? { ...u, approved: true } : u);
-        setUsersList(updated);
-        localStorage.setItem("mockUsers", JSON.stringify(updated));
+      if (!isDemo) {
+        await approveRegistration(userData.email, randomPass, userData);
+        await deleteDoc(doc(db, "pending_registrations", regId));
       } else {
-        await updateDoc(doc(db, "users", userId), { approved: true });
+        const updated = pendingList.filter(r => r.id !== regId);
+        setPendingList(updated);
       }
-      setMsg({ type: "success", text: "User approved successfully!" });
-      setTimeout(() => setMsg({ type: "", text: "" }), 3000);
+      
+      const creds = `TeamCKB Login\nEmail: ${userData.email}\nPassword: ${randomPass}`;
+      copyToClipboard(creds);
+      
+      setMsg({ type: "success", text: `Approved ${userData.name}! Login Email: ${userData.email} and Password: ${randomPass} (Copied to clipboard).` });
+      setTimeout(() => setMsg({ type: "", text: "" }), 10000);
     } catch (err) {
       setMsg({ type: "error", text: "Approval failed: " + err.message });
+      setTimeout(() => setMsg({ type: "", text: "" }), 4000);
     }
   };
 
-  const handleRejectUser = async (userId, userName) => {
-    if (!window.confirm(`Reject and delete application for ${userName}?`)) return;
+  const handleRejectRegistration = async (regId, userName) => {
+    if (!window.confirm(`Reject and delete setup for ${userName}?`)) return;
     try {
       if (isDemo) {
-        const filtered = usersList.filter(u => u.uid !== userId);
-        setUsersList(filtered);
-        localStorage.setItem("mockUsers", JSON.stringify(filtered));
+        const filtered = pendingList.filter(u => u.uid !== regId);
+        setPendingList(filtered);
       } else {
-        await deleteDoc(doc(db, "users", userId));
+        await deleteDoc(doc(db, "pending_registrations", regId));
       }
       setMsg({ type: "success", text: `Application for ${userName} rejected.` });
       setTimeout(() => setMsg({ type: "", text: "" }), 3000);
@@ -284,6 +312,22 @@ export default function AdminPanel() {
     }
   };
 
+  const handleToggleDocVerified = async (userId, currentStatus) => {
+    try {
+      if (isDemo) {
+        const updated = usersList.map(u => u.uid === userId ? { ...u, docVerified: !currentStatus } : u);
+        setUsersList(updated);
+        localStorage.setItem("mockUsers", JSON.stringify(updated));
+      } else {
+        await updateDoc(doc(db, "users", userId), { docVerified: !currentStatus });
+      }
+      setMsg({ type: "success", text: `Document verification ${!currentStatus ? 'approved' : 'revoked'}.` });
+      setTimeout(() => setMsg({ type: "", text: "" }), 3000);
+    } catch (err) {
+      setMsg({ type: "error", text: "Failed to update doc verification: " + err.message });
+    }
+  };
+
   const handleSetAward = async (userId, type, val) => {
     if (!val) return;
     
@@ -311,7 +355,11 @@ export default function AdminPanel() {
         // Set new winner
         await updateDoc(doc(db, "users", userId), { [field]: val });
       }
-      setMsg({ type: "success", text: `${userToAward.name} is now the ${type === 'month' ? 'Month' : 'Year'} winner!` });
+      if (userToAward) {
+        setMsg({ type: "success", text: `${userToAward.name} is now the ${type === 'month' ? 'Month' : 'Year'} winner!` });
+      } else {
+        setMsg({ type: "success", text: `Award updated successfully!` });
+      }
     } catch (err) {
       setMsg({ type: "error", text: "Failed to set award: " + err.message });
     }
@@ -344,10 +392,10 @@ export default function AdminPanel() {
     const role = u.role?.toLowerCase();
     return role !== 'admin' && role !== 'company' && u.approved !== false;
   });
-  const pendingUsers = usersList.filter(u => u.approved === false);
+  const pendingUsersCount = pendingList.length;
   const filteredInterns = interns.filter(u => 
-    u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (u.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (u.email || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleSelectAll = () => {
@@ -387,7 +435,7 @@ export default function AdminPanel() {
         <AdminSidebar 
           activeTab={activeTab} 
           setActiveTab={setActiveTab} 
-          pendingCount={pendingUsers.length} 
+          pendingCount={pendingUsersCount} 
         />
 
         <main className="admin-content">
@@ -408,6 +456,7 @@ export default function AdminPanel() {
                   onClearAward={handleClearAward}
                   onUploadReport={handleUploadReport}
                   onUploadCertificate={handleUploadCertificate}
+                  onToggleDocVerified={handleToggleDocVerified}
                   expandedUserDocs={expandedUserDocs}
                   setExpandedUserDocs={setExpandedUserDocs}
                   uploadingPhoto={uploadingPhoto}
@@ -422,9 +471,9 @@ export default function AdminPanel() {
             {activeTab === 'pending' && (
               <motion.div key="pending" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                 <ApprovalsHub 
-                  users={usersList} 
-                  onApprove={handleApproveUser} 
-                  onReject={handleRejectUser} 
+                  users={pendingList} 
+                  onApprove={handleApproveRegistration} 
+                  onReject={handleRejectRegistration} 
                   msg={msg} 
                 />
               </motion.div>

@@ -5,7 +5,7 @@ import { UserCheck, X, ShieldCheck, Calendar } from "lucide-react";
 export default function ApprovalsHub({ users, onApprove, onReject, msg }) {
   const [expandedId, setExpandedId] = useState(null);
 
-  const pendingUsers = users.filter(user => user.approved === false);
+  const pendingUsers = users;
 
   const DetailItem = ({ label, value }) => (
     <div style={{ marginBottom: '8px' }}>

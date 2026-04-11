@@ -1,5 +1,11 @@
 <?php
-$allowed_origins = ["https://teamckb.in", "http://localhost:5173", "http://127.0.0.1:5173"];
+$allowed_origins = [
+    "https://teamckb.in", 
+    "http://localhost:5173", 
+    "http://127.0.0.1:5173",
+    "https://teamchalokhushiyanbatein.web.app",
+    "https://teamchalokhushiyanbatein.firebaseapp.com"
+];
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
 if (in_array($origin, $allowed_origins)) {
@@ -15,8 +21,8 @@ if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (isset($_FILES["file"])) {
         $file = $_FILES["file"];
-        $max_size = 5 * 1024 * 1024; // 5MB
-        $allowed_exts = ["jpg", "jpeg", "png", "gif", "pdf", "docx", "doc"];
+        $max_size = 15 * 1024 * 1024; // Increased to 15MB for site bundles
+        $allowed_exts = ["jpg", "jpeg", "png", "gif", "pdf", "docx", "doc", "zip"];
         
         $ext = strtolower(pathinfo($file["name"], PATHINFO_EXTENSION));
         
